@@ -27,3 +27,16 @@ button:disabled{opacity:.48;filter:saturate(.55);cursor:default}
 @keyframes cardIn{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
 @media(max-width:360px){#controls{gap:8px;padding-inline:10px}button{font-size:11px;min-height:52px;padding:11px 8px}#progressWrap{width:72px}}
 @media(max-height:650px){#controls{bottom:10px}button{min-height:46px}#hud{top:4px}}
+
+/* Level navigation */
+#hud{pointer-events:auto}
+#levelSelect{min-height:0;padding:9px 11px;border:1px solid #d4c3ac;border-radius:12px;background:rgba(255,252,245,.92);color:#806b52;box-shadow:0 3px 9px #6b52301a;font-size:10px;letter-spacing:.1em;white-space:nowrap}
+#levelSelect:active{transform:translateY(1px)}
+#screen .level-picker{max-height:78%;overflow:auto}
+#screen .level-option{display:flex;flex-direction:column;gap:3px;align-items:center;margin-top:9px;padding:12px;background:#eee5d8;color:#5C4D3C;box-shadow:0 3px 0 #d1c0a9}
+#screen .level-option span{font-size:9px;letter-spacing:.15em;color:#90795e}
+#screen .level-option strong{font:800 17px system-ui,sans-serif}
+#screen .level-option small{font:700 9px system-ui,sans-serif;letter-spacing:.12em;color:#588157}
+#screen .level-option.current{outline:2px solid #78865B;background:#f7f2e9}
+#screen .picker-cancel{background:#78865B;box-shadow:0 4px 0 #4f603b}
+@media(max-width:360px){#levelSelect{padding:8px 8px;font-size:9px}}
