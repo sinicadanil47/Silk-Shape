@@ -12,81 +12,58 @@ const TAU=Math.PI*2;
 const PAPER='#F4EFE6',INK='#5C4D3C',THREAD='#C85A32';
 const STATE={PLAYING:'PLAYING',MOVING:'MOVING',LOSE:'LOSE',WIN:'WIN'};
 let state=STATE.PLAYING,W=0,H=0,D=1,last=0,clock=0,bug=null,nodes=[],edges=[],particles=[],grain=[],loseTimer=0,winTimer=0;
+// Straight-segment silhouettes; every listed coordinate is a deliberate peg.
 const TEMPLATES=[
- {name:'КОНВЕРТ',p:[[.2,.3],[.5,.18],[.8,.3],[.8,.68],[.5,.82],[.2,.68]]},
- {name:'ДОМИК',p:[[.2,.48],[.5,.18],[.8,.48],[.8,.8],[.2,.8]]},
- {name:'АРКА',p:[[.2,.8],[.2,.48],[.28,.28],[.5,.18],[.72,.28],[.8,.48],[.8,.8]]},
- {name:'ЁЛКА',p:[[.5,.15],[.76,.4],[.62,.4],[.82,.62],[.64,.62],[.84,.82],[.16,.82],[.36,.62],[.18,.62],[.38,.4],[.24,.4]]},
- {name:'КРИСТАЛЛ',p:[[.5,.14],[.78,.34],[.84,.58],[.5,.84],[.16,.58],[.22,.34]]},
- {name:'ПЕСОЧНЫЕ ЧАСЫ',p:[[.2,.18],[.8,.18],[.58,.5],[.8,.82],[.2,.82],[.42,.5]]},
- {name:'ЛЕСЕНКА',p:[[.2,.2],[.8,.2],[.8,.36],[.34,.36],[.34,.52],[.8,.52],[.8,.68],[.2,.68]]},
- {name:'ЗВЕЗДА',p:[[.5,.12],[.62,.38],[.88,.4],[.68,.58],[.76,.86],[.5,.7],[.24,.86],[.32,.58],[.12,.4],[.38,.38]]},
- {name:'ПЕТЛЯ С УШКАМИ',p:[[.2,.4],[.25,.22],[.4,.3],[.5,.48],[.6,.3],[.75,.22],[.8,.4],[.72,.72],[.5,.84],[.28,.72]]}
+{name:'ДОМИК',p:[[.2,.82],[.2,.43],[.5,.17],[.8,.43],[.8,.82],[.62,.82],[.62,.59],[.38,.59],[.38,.82]]},
+{name:'КОНВЕРТ',p:[[.18,.25],[.82,.25],[.82,.75],[.18,.75],[.18,.25],[.5,.5]]},
+{name:'КОРОНА',p:[[.17,.76],[.17,.36],[.34,.53],[.5,.19],[.66,.53],[.83,.36],[.83,.76],[.17,.76]]},
+{name:'ЗВЕЗДА',p:[[.5,.13],[.61,.39],[.88,.4],[.68,.58],[.76,.85],[.5,.7],[.24,.85],[.32,.58],[.12,.4],[.39,.39]]},
+{name:'ЁЛКА',p:[[.5,.14],[.72,.39],[.6,.39],[.82,.61],[.65,.61],[.86,.82],[.14,.82],[.35,.61],[.18,.61],[.4,.39],[.28,.39]]},
+{name:'КРИСТАЛЛ',p:[[.5,.13],[.76,.3],[.86,.5],[.76,.7],[.5,.87],[.24,.7],[.14,.5],[.24,.3]]},
+{name:'ПЕСОЧНЫЕ ЧАСЫ',p:[[.2,.18],[.8,.18],[.5,.5],[.8,.82],[.2,.82],[.5,.5]]},
+{name:'ЛЕСЕНКА',p:[[.2,.18],[.8,.18],[.8,.34],[.38,.34],[.38,.5],[.72,.5],[.72,.66],[.2,.66],[.2,.82],[.8,.82]]},
+{name:'БАНТ',p:[[.5,.5],[.18,.22],[.18,.78],[.5,.5],[.82,.22],[.82,.78]]},
+{name:'РАКЕТА',p:[[.5,.13],[.72,.4],[.72,.68],[.62,.68],[.62,.84],[.38,.84],[.38,.68],[.28,.68],[.28,.4]]},
+{name:'СТРЕЛА',p:[[.15,.5],[.58,.5],[.58,.25],[.88,.5],[.58,.75],[.58,.5]]},
+{name:'АРКА',p:[[.18,.82],[.18,.5],[.25,.31],[.39,.2],[.61,.2],[.75,.31],[.82,.5],[.82,.82]]}
 ];
 let levelIndex=1,LEVELS=[];
 function seededRandom(seed){let s=(seed>>>0)||0x9E3779B9;return ()=>{s+=0x6D2B79F5;let t=s;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return ((t^(t>>>14))>>>0)/4294967296;};}
-function sampleClosedPath(path,count){
- const lengths=[];let perimeter=0;
- for(let i=0;i<path.length;i++){const p=path[i],q=path[(i+1)%path.length],len=Math.hypot(q[0]-p[0],q[1]-p[1]);lengths.push(len);perimeter+=len;}
- const points=[];for(let k=0;k<count;k++){let d=perimeter*k/count,seg=0;while(seg<lengths.length-1&&d>lengths[seg]){d-=lengths[seg];seg++;}const p=path[seg],q=path[(seg+1)%path.length],t=d/(lengths[seg]||1);points.push([p[0]+(q[0]-p[0])*t,p[1]+(q[1]-p[1])*t]);}return points;
-}
 function eulerRoute(points,links,start=0){
  const adj=points.map(()=>[]);links.forEach(([a,b],id)=>{adj[a].push({to:b,id});adj[b].push({to:a,id});});
- const used=new Set(),stack=[{v:start,edge:null}],route=[];while(stack.length){const top=stack[stack.length-1],step=adj[top.v].find(x=>!used.has(x.id));if(step){used.add(step.id);stack.push({v:step.to,edge:{from:top.v,to:step.to,id:step.id}});}else{const item=stack.pop();if(item.edge)route.push(item.edge);}}return route.reverse();
+ const used=new Set(),stack=[{v:start,edge:null}],route=[];
+ while(stack.length){const top=stack[stack.length-1],step=adj[top.v].find(x=>!used.has(x.id));if(step){used.add(step.id);stack.push({v:step.to,edge:{from:top.v,to:step.to,id:step.id}});}else{const item=stack.pop();if(item.edge)route.push(item.edge);}}
+ return route.reverse();
 }
 function validateGenerated(points,links){
  const n=points.length;if(n<6||n>14||links.length<n)return false;
- const degree=Array(n).fill(0),adj=Array.from({length:n},()=>[]),keys=new Set();
- for(const [a,b] of links){if(!Number.isInteger(a)||!Number.isInteger(b)||a===b||a<0||b<0||a>=n||b>=n)return false;const key=a<b?a+':'+b:b+':'+a;if(keys.has(key))return false;keys.add(key);degree[a]++;degree[b]++;adj[a].push(b);adj[b].push(a);}
- if(degree.some(d=>d%2)||degree.filter(d=>d>=4).length<2)return false;
- const reached=new Set([0]),todo=[0];while(todo.length){const v=todo.pop();for(const w of adj[v])if(!reached.has(w)){reached.add(w);todo.push(w);}}
- if(reached.size!==n)return false;const route=eulerRoute(points,links);return route.length===links.length&&new Set(route.map(x=>x.id)).size===links.length;
+ const deg=Array(n).fill(0),adj=Array.from({length:n},()=>[]),keys=new Set();
+ for(const [a,b] of links){if(!Number.isInteger(a)||!Number.isInteger(b)||a===b||a<0||b<0||a>=n||b>=n)return false;const k=a<b?a+':'+b:b+':'+a;if(keys.has(k))return false;keys.add(k);deg[a]++;deg[b]++;adj[a].push(b);adj[b].push(a);}
+ if(deg.some(d=>d%2)||deg.filter(d=>d>=4).length<2)return false;
+ const seen=new Set([0]),todo=[0];while(todo.length){for(const v of adj[todo.pop()])if(!seen.has(v)){seen.add(v);todo.push(v);}}
+ if(seen.size!==n)return false;const route=eulerRoute(points,links);return route.length===links.length&&new Set(route.map(x=>x.id)).size===links.length;
 }
 function generateLevel(levelNumber){
- const number=Math.max(1,Math.floor(Number(levelNumber)||1)),seed=Math.imul(number,0x9E3779B1)^Math.imul(number>>>3,0x85EBCA6B),rng=seededRandom(seed);
- const template=TEMPLATES[(number-1)%TEMPLATES.length];
- const count=number<=20?6+Math.floor((number-1)*4/19):Math.min(14,10+Math.floor(Math.min(1,(number-21)/420)*4));
- const targetCycles=number<=20?1+Math.floor((number-1)/10):Math.min(8,2+Math.floor(Math.min(1,(number-21)/979)*6));
- let fallbackPoints=null;
- for(let attempt=0;attempt<48;attempt++){
-  const raw=sampleClosedPath(template.p,count),mirror=rng()<.5,rotation=(rng()-.5)*.48,scale=.91+rng()*.13,cs=Math.cos(rotation),sn=Math.sin(rotation),phase=rng()*Math.PI*2,warp=.006+rng()*.022;
-  const points=raw.map(([x,y],i)=>{const dx=(x-.5)*scale*(mirror?-1:1),dy=(y-.5)*scale,radial=Math.sin(i*2.399+phase)*warp;return [Math.max(.10,Math.min(.90,.5+dx*cs-dy*sn+radial)),Math.max(.10,Math.min(.90,.5+dx*sn+dy*cs+Math.cos(i*1.71+phase)*warp))];});
-  fallbackPoints=points;
-  const n=points.length,links=points.map((_,i)=>[i,(i+1)%n]),occupied=new Set(links.map(([a,b])=>a<b?a+':'+b:b+':a'));
-  let added=0;
-  for(let cycle=0;cycle<targetCycles;cycle++){
-   let accepted=false;
-   for(let trial=0;trial<28&&!accepted;trial++){
-    const size=3+Math.floor(rng()*Math.min(3,n-2)),pool=Array.from({length:n},(_,i)=>i);
-    for(let i=pool.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]];}
-    const order=pool.slice(0,size);if(rng()<.5)order.reverse();
-    const loop=order.map((v,i)=>[v,order[(i+1)%size]]);
-    if(loop.some(([a,b])=>occupied.has(a<b?a+':'+b:b+':a')))continue;
-    for(const [a,b] of loop){links.push([a,b]);occupied.add(a<b?a+':'+b:b+':a');}
-    accepted=true;added++;
-   }
-   if(!accepted)break;
-  }
-  if(added===targetCycles&&validateGenerated(points,links)){
-   const degree=Array(n).fill(0);for(const [a,b] of links){degree[a]++;degree[b]++;}
-   return {name:template.name,title:template.name,points,links,start:0,solution:eulerRoute(points,links).length,levelNumber:number,complexity:{nodes:n,edges:links.length,branches:degree.filter(d=>d>=4).length}};
-  }
+ const number=Math.max(1,Math.floor(Number(levelNumber)||1)),rng=seededRandom((Math.imul(number,0x9E3779B1)^Math.imul(number>>>2,0x85EBCA6B))>>>0),tpl=TEMPLATES[(number-1)%TEMPLATES.length];
+ const mirror=rng()<.5,a=(rng()-.5)*.1,s=.96+rng()*.06,c=Math.cos(a),sn=Math.sin(a);
+ const points=tpl.p.map(([x,y])=>{const dx=(x-.5)*s*(mirror?-1:1),dy=(y-.5)*s;return [.5+dx*c-dy*sn,.5+dx*sn+dy*c];});
+ const n=points.length,links=points.map((_,i)=>[i,(i+1)%n]),used=new Set(links.map(([x,y])=>x<y?x+':'+y:y+':'+x)),deg=Array(n).fill(2);
+ const loops=number<=20?1+Math.floor((number-1)/7):Math.min(7,3+Math.floor((number-21)/160));
+ const options=[];
+ for(let size=3;size<=Math.min(5,n);size++){
+  const choose=(from,arr)=>{if(arr.length===size){const loop=arr.map((v,i)=>[v,arr[(i+1)%size]]);if(loop.every(([x,y])=>!used.has(x<y?x+':'+y:y+':x')))options.push(loop);return;}for(let v=from;v<n;v++)choose(v+1,arr.concat(v));};
+  choose(0,[]);
  }
- // Deterministic fallback preserves the seeded silhouette and requested difficulty.
- const points=fallbackPoints||sampleClosedPath(template.p,count),n=points.length;
- const links=points.map((_,i)=>[i,(i+1)%n]);
- const occupied=new Set(links.map(([x,y])=>x<y?x+':'+y:y+':'+x));
+ for(let i=options.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[options[i],options[j]]=[options[j],options[i]];}
  let added=0;
- for(let i=0;i<n&&added<targetCycles;i++)for(let j=i+1;j<n&&added<targetCycles;j++)for(let k=j+1;k<n&&added<targetCycles;k++){
-  const tri=[[i,j],[j,k],[k,i]];
-  if(tri.some(([x,y])=>occupied.has(x<y?x+':'+y:y+':'+x)))continue;
-  for(const [x,y] of tri){links.push([x,y]);occupied.add(x<y?x+':'+y:y+':'+x);}
-  added++;
+ for(const loop of options){if(loop.some(([x,y])=>used.has(x<y?x+':'+y:y+':x')))continue;for(const [x,y] of loop){links.push([x,y]);used.add(x<y?x+':'+y:y+':x');deg[x]++;deg[y]++;}if(++added>=loops)break;}
+ if(!validateGenerated(points,links)){
+  const fixed=points.map((_,i)=>[i,(i+1)%n]),taken=new Set(fixed.map(([x,y])=>x<y?x+':'+y:y+':x'));
+  for(let i=0;i<n;i++){const tri=[i%n,(i+2)%n,(i+4)%n],loop=[[tri[0],tri[1]],[tri[1],tri[2]],[tri[2],tri[0]]];if(new Set(tri).size<3||loop.some(([x,y])=>taken.has(x<y?x+':'+y:y+':x')))continue;for(const [x,y] of loop){fixed.push([x,y]);taken.add(x<y?x+':'+y:y+':x');}if(validateGenerated(points,fixed)){links.splice(0,links.length,...fixed);break;}}
  }
- if(!validateGenerated(points,links))throw new Error('Не удалось построить уровень '+number);
- const degree=Array(n).fill(0);for(const [x,y] of links){degree[x]++;degree[y]++;}
- return {name:template.name,title:template.name,points,links,start:0,solution:eulerRoute(points,links).length,levelNumber:number,complexity:{nodes:n,edges:links.length,branches:degree.filter(d=>d>=4).length}};
-
+ if(!validateGenerated(points,links))throw new Error('Не удалось построить честный уровень '+number);
+ for(let i=0;i<n;i++)deg[i]=0;for(const [x,y] of links){deg[x]++;deg[y]++;}
+ return {name:tpl.name,title:tpl.name,points,links,start:0,solution:eulerRoute(points,links).length,levelNumber:number,complexity:{nodes:n,edges:links.length,branches:deg.filter(d=>d>=4).length}};
 }
 let rabbitPoints=[],rabbitLinks=[];
 let boardSize=0,boardLeft=0,boardTop=0;
