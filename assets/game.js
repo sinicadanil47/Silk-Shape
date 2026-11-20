@@ -12,74 +12,105 @@ const TAU=Math.PI*2;
 const PAPER='#F4EFE6',INK='#5C4D3C',THREAD='#C85A32';
 const STATE={PLAYING:'PLAYING',MOVING:'MOVING',LOSE:'LOSE',WIN:'WIN'};
 let state=STATE.PLAYING,W=0,H=0,D=1,last=0,clock=0,bug=null,nodes=[],edges=[],particles=[],grain=[],loseTimer=0,winTimer=0;
-const LEVELS=[
- {
-  name:'ЗАЯЦ',title:'Заяц',start:2,
-  points:[
-   [.35,.18],[.28,.36],[.42,.36],[.65,.18],[.58,.36],[.72,.36],
-   [.50,.39],[.22,.50],[.78,.50],[.31,.65],[.50,.70],[.69,.65]
-  ],
-  links:[[0,1],[1,2],[2,0],[3,4],[4,5],[5,3],[2,6],[4,6],[6,8],[8,11],[11,10],[10,9],[9,7],[7,6]]
- },
- {
-  name:'ПОНЧИК',title:'Пончик',start:0,
-  points:Array.from({length:8},(_,i)=>{
-   const a=-Math.PI/2+i*Math.PI/4;
-   return [.50+.36*Math.cos(a),.50+.36*Math.sin(a)];
-  }).concat([[.50,.50]]),
-  // Outer ring, two crossing diameters routed through the central peg,
-  // and two short inner braces keep every vertex even for an Euler circuit.
-  links:[
-   [0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,0],
-   [7,8],[8,3],[1,8],[8,5],
-   [1,3],[5,7]
-  ]
- },
- {
-  name:'КОРОНА',title:'Корона',start:0,
-  points:[
-   [.18,.68], // 0 left base corner
-   [.50,.68], // 1 base center
-   [.82,.68], // 2 right base corner
-   [.15,.48], // 3 left side
-   [.85,.48], // 4 right side
-   [.18,.25], // 5 left tooth tip
-   [.34,.42], // 6 left valley
-   [.50,.20], // 7 center high tip
-   [.66,.42], // 8 right valley
-   [.82,.25]  // 9 right tooth tip
-  ],
-  links:[
-   // Continuous crown silhouette
-   [0,3],[3,5],[5,6],[6,7],[7,8],[8,9],[9,4],[4,2],[2,1],[1,0],
-   // Three internal braces create deliberate branch decisions
-   [6,1],[8,1],[6,8]
-  ]
- },
- {
-  name:'КРИСТАЛЛ',title:'Кристалл',start:2,
-  points:[
-   [.50,.13], // 0 top
-   [.68,.27], // 1 upper right
-   [.82,.46], // 2 right
-   [.68,.65], // 3 lower right
-   [.50,.79], // 4 bottom
-   [.32,.65], // 5 lower left
-   [.18,.46], // 6 left
-   [.32,.27], // 7 upper left
-   [.50,.34], // 8 inner upper
-   [.64,.46], // 9 inner right
-   [.50,.58], // 10 inner lower
-   [.36,.46]  // 11 inner left
-  ],
-  links:[
-   [0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,0],
-   [0,8],[8,9],[9,10],[10,11],[11,4],[9,2],[10,6],[0,4],
-   [9,11],[10,8],[8,11]
-  ]
- }
+const TEMPLATES=[
+ {name:'КОНВЕРТ',p:[[.2,.3],[.5,.18],[.8,.3],[.8,.68],[.5,.82],[.2,.68]]},
+ {name:'ДОМИК',p:[[.2,.48],[.5,.18],[.8,.48],[.8,.8],[.2,.8]]},
+ {name:'АРКА',p:[[.2,.8],[.2,.48],[.28,.28],[.5,.18],[.72,.28],[.8,.48],[.8,.8]]},
+ {name:'ЁЛКА',p:[[.5,.15],[.76,.4],[.62,.4],[.82,.62],[.64,.62],[.84,.82],[.16,.82],[.36,.62],[.18,.62],[.38,.4],[.24,.4]]},
+ {name:'КРИСТАЛЛ',p:[[.5,.14],[.78,.34],[.84,.58],[.5,.84],[.16,.58],[.22,.34]]},
+ {name:'ПЕСОЧНЫЕ ЧАСЫ',p:[[.2,.18],[.8,.18],[.58,.5],[.8,.82],[.2,.82],[.42,.5]]},
+ {name:'ЛЕСЕНКА',p:[[.2,.2],[.8,.2],[.8,.36],[.34,.36],[.34,.52],[.8,.52],[.8,.68],[.2,.68]]},
+ {name:'ЗВЕЗДА',p:[[.5,.12],[.62,.38],[.88,.4],[.68,.58],[.76,.86],[.5,.7],[.24,.86],[.32,.58],[.12,.4],[.38,.38]]},
+ {name:'ПЕТЛЯ С УШКАМИ',p:[[.2,.4],[.25,.22],[.4,.3],[.5,.48],[.6,.3],[.75,.22],[.8,.4],[.72,.72],[.5,.84],[.28,.72]]}
 ];
-let levelIndex=0;
+let levelIndex=1,LEVELS=[];
+function seededRandom(seed){
+ let s=seed>>>0;
+ return ()=>{s+=0x6D2B79F5;let t=s;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return ((t^(t>>>14))>>>0)/4294967296;};
+}
+function sampleClosedPath(path,count){
+ const lengths=[],total=0;
+ let sum=0;
+ for(let i=0;i<path.length;i++){const p=path[i],q=path[(i+1)%path.length],len=Math.hypot(q[0]-p[0],q[1]-p[1]);lengths.push(len);sum+=len;}
+ const points=[];
+ for(let k=0;k<count;k++){
+  let d=sum*k/count,seg=0;
+  while(seg<lengths.length-1&&d>lengths[seg]){d-=lengths[seg];seg++;}
+  const p=path[seg],q=path[(seg+1)%path.length],t=d/(lengths[seg]||1);
+  points.push([p[0]+(q[0]-p[0])*t,p[1]+(q[1]-p[1])*t]);
+ }
+ return points;
+}
+function eulerRoute(points,links,start=0){
+ const adj=points.map(()=>[]);
+ links.forEach(([a,b],id)=>{adj[a].push({to:b,id});adj[b].push({to:a,id});});
+ const seen=new Set(),stack=[{v:start,edge:null}],route=[];
+ while(stack.length){
+  const top=stack[stack.length-1],step=adj[top.v].find(x=>!seen.has(x.id));
+  if(step){seen.add(step.id);stack.push({v:step.to,edge:{from:top.v,to:step.to,id:step.id}});}
+  else{const item=stack.pop();if(item.edge)route.push(item.edge);}
+ }
+ return route.reverse();
+}
+function validateGenerated(points,links){
+ if(points.length<6||points.length>14||links.length<points.length)return false;
+ const degree=points.map(()=>0),adj=points.map(()=>[]);
+ const keys=new Set();
+ for(const [a,b] of links){
+  if(a===b||a<0||b<0||a>=points.length||b>=points.length)return false;
+  const key=a<b?a+':'+b:b+':'+a;if(keys.has(key))return false;keys.add(key);
+  degree[a]++;degree[b]++;adj[a].push(b);adj[b].push(a);
+ }
+ if(degree.some(d=>d%2!==0)||degree.filter(d=>d>=4).length<2)return false;
+ const reached=new Set([0]),todo=[0];
+ while(todo.length){for(const n of adj[todo.pop()])if(!reached.has(n)){reached.add(n);todo.push(n);}}
+ if(reached.size!==points.length)return false;
+ return eulerRoute(points,links).length===links.length;
+}
+function generateLevel(levelNumber){
+ const number=Math.max(1,Math.floor(Number(levelNumber)||1)),rng=seededRandom(number*2654435761);
+ const template=TEMPLATES[Math.floor(rng()*TEMPLATES.length)];
+ const count=number<=20?7+Math.floor((number-1)/7):Math.min(14,10+Math.floor(Math.min(1,(number-21)/240)*4));
+ const difficulty=Math.min(4,1+Math.floor(number/35));
+ for(let attempt=0;attempt<48;attempt++){
+  const path=template.p.map(p=>p.slice());
+  const mirror=rng()<.5,rotation=(rng()-.5)*.22,scale=.88+rng()*.18,cs=Math.cos(rotation),sn=Math.sin(rotation);
+  const points=sampleClosedPath(path,count).map(([x,y])=>{
+   let dx=(x-.5)*scale*(mirror?-1:1),dy=(y-.5)*scale;
+   const j=(rng()-.5)*.018;
+   const rx=dx*cs-dy*sn+j,ry=dx*sn+dy*cs-j;
+   return [Math.max(.12,Math.min(.88,.5+rx)),Math.max(.12,Math.min(.88,.5+ry))];
+  });
+  const links=points.map((_,i)=>[i,(i+1)%count]);
+  const occupied=new Set(links.map(([a,b])=>a<b?a+':'+b:b+':'+a));
+  const candidates=[];
+  for(let i=0;i<count;i++)for(let j=i+1;j<count;j++)for(let k=j+1;k<count;k++){
+   const pairs=[[i,j],[j,k],[k,i]];
+   if(pairs.every(([a,b])=>!occupied.has(a<b?a+':'+b:b+':a')))candidates.push([i,j,k]);
+  }
+  for(let i=candidates.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[candidates[i],candidates[j]]=[candidates[j],candidates[i]];}
+  const usedVertices=new Set();let added=0;
+  for(const tri of candidates){
+   if(tri.some(v=>usedVertices.has(v)))continue;
+   const pairs=[[tri[0],tri[1]],[tri[1],tri[2]],[tri[2],tri[0]]];
+   if(pairs.some(([a,b])=>occupied.has(a<b?a+':'+b:b+':a')))continue;
+   for(const [a,b] of pairs){links.push([a,b]);occupied.add(a<b?a+':'+b:b+':a');}
+   tri.forEach(v=>usedVertices.add(v));added++;
+   if(added>=difficulty)break;
+  }
+  if(validateGenerated(points,links)){
+   const route=eulerRoute(points,links,0);
+   return {name:template.name,title:template.name,points,links,start:0,solution:route.length,levelNumber:number};
+  }
+ }
+ // Guaranteed bounded fallback: a simple polygon plus one interior triangle.
+ const points=sampleClosedPath(TEMPLATES[(number-1)%TEMPLATES.length].p,Math.max(7,Math.min(14,count)));
+ const links=points.map((_,i)=>[i,(i+1)%points.length]);
+ const tri=[0,2,4];for(const [a,b] of [[0,2],[2,4],[4,0]])links.push([a,b]);
+ if(!validateGenerated(points,links))throw new Error('Не удалось построить проходимый уровень '+number);
+ return {name:TEMPLATES[(number-1)%TEMPLATES.length].name,title:TEMPLATES[(number-1)%TEMPLATES.length].name,points,links,start:0,solution:eulerRoute(points,links).length,levelNumber:number};
+}
+
 let rabbitPoints=LEVELS[0].points,rabbitLinks=LEVELS[0].links;
 let boardSize=0,boardLeft=0,boardTop=0;
 function mapBoardPoint(nx,ny){
@@ -100,7 +131,7 @@ function installResizeHandling(){
  if('ResizeObserver' in window)new ResizeObserver(resizeCanvas).observe(game);
 }
 function makeGraph(){
- const level=LEVELS[levelIndex];
+ const level=LEVELS[0];
  rabbitPoints=level.points;rabbitLinks=level.links;
  nodes=rabbitPoints.map((p,id)=>{const q=mapBoardPoint(p[0],p[1]);return {id,nx:p[0],ny:p[1],x:q.x,y:q.y,targetNodeId:null,neighbors:[],pulse:0};});
  edges=rabbitLinks.map(([ai,bi],id)=>{
@@ -156,26 +187,22 @@ canvas.addEventListener('pointerdown',e=>{
 },{passive:false});
 levelSelectButton.addEventListener('click',showLevelPicker);
 function loadLevel(index){
- if(index<0||index>=LEVELS.length)return;
- levelIndex=index;state=STATE.PLAYING;loseTimer=0;winTimer=0;particles=[];
+ if(!Number.isFinite(index)||index<1||index>1000000)return;
+ levelIndex=Math.floor(index);LEVELS=[generateLevel(levelIndex)];state=STATE.PLAYING;loseTimer=0;winTimer=0;particles=[];
  screen.style.display='none';screen.className='';
- levelLabel.textContent='УРОВЕНЬ '+(levelIndex+1)+' · '+LEVELS[levelIndex].name;
+ levelLabel.textContent='УРОВЕНЬ '+levelIndex+' · '+LEVELS[0].name;
  makeGraph();setProgress();
 }
 function restart(){loadLevel(levelIndex);}
 function nextLevel(){
- if(levelIndex>=LEVELS.length-1)return;
  loadLevel(levelIndex+1);
 }
 function showLevelPicker(){
  if(state===STATE.MOVING)return;
  screen.className='modal';screen.style.display='flex';
- screen.innerHTML='<div class="card level-picker"><div class="eyebrow">SILK &amp; SHAPE</div><h1>Выбор уровня</h1><p class="subtitle">Выбери фигуру, которую хочешь сплести.</p>'+LEVELS.map((level,i)=>'<button type="button" class="level-option'+(i===levelIndex?' current':'')+'" data-level="'+i+'"><span>УРОВЕНЬ '+(i+1)+'</span><strong>'+level.title+'</strong>'+(i===levelIndex?'<small>ТЕКУЩИЙ</small>':'')+'</button>').join('')+'<button type="button" class="picker-cancel" id="closeLevelPicker">НАЗАД</button></div>';
- screen.querySelectorAll('[data-level]').forEach(button=>button.addEventListener('click',()=>loadLevel(Number(button.dataset.level))));
- document.getElementById('closeLevelPicker').addEventListener('click',()=>{
-  screen.style.display='none';screen.className='';
-  if(state===STATE.WIN)showEnd(true);else if(state===STATE.LOSE)showEnd(false);
- });
+ screen.innerHTML='<div class="card level-picker"><div class="eyebrow">SILK &amp; SHAPE</div><h1>Выбор уровня</h1><p class="subtitle">Доступно более 1000 процедурно созданных уровней.</p><label class="level-entry">НОМЕР УРОВНЯ<input id="levelNumberInput" type="number" min="1" max="1000000" step="1" value="'+levelIndex+'"></label><button type="button" class="primary" id="goLevel">ОТКРЫТЬ УРОВЕНЬ</button><button type="button" class="picker-cancel" id="closeLevelPicker">НАЗАД</button></div>';
+ document.getElementById('goLevel').addEventListener('click',()=>{const value=Number(document.getElementById('levelNumberInput').value);if(Number.isInteger(value)&&value>=1&&value<=1000000)loadLevel(value);});
+ document.getElementById('closeLevelPicker').addEventListener('click',()=>{screen.style.display='none';screen.className='';if(state===STATE.WIN)showEnd(true);else if(state===STATE.LOSE)showEnd(false);});
 }
 function lose(){
  if(state===STATE.LOSE||state===STATE.WIN)return;
@@ -213,9 +240,9 @@ function update(dt){
  particles=particles.filter(p=>p.life>0);
 }
 function showEnd(won){
- const level=LEVELS[levelIndex],hasNext=levelIndex<LEVELS.length-1;
+ const level=LEVELS[0],hasNext=true;
  screen.className='modal';screen.style.display='flex';
- const title=won?(levelIndex===0?'Заяц сплетён!':levelIndex===1?'Пончик готов!':levelIndex===2?'Корона готова!':'Кристалл сплетён!'):'Засада! Нить уже пройдена';
+ const title=won?(level.title+' сплетён!'):'Засада! Нить уже пройдена';
  const subtitle=won?'Все линии пройдены ровно по одному разу. Отличная работа!':'Жучок повторно прошёл по уже использованной нити и запутался.';
  screen.innerHTML='<div class="card"><div class="eyebrow">SILK &amp; SHAPE · УРОВЕНЬ '+(levelIndex+1)+'</div><h1>'+title+'</h1><p class="subtitle">'+subtitle+'</p>'+(won&&hasNext?'<button class="primary" id="nextLevel">СЛЕДУЮЩИЙ УРОВЕНЬ</button>':'')+'<button class="primary" id="again">ЗАНОВО</button></div>';
  const next=document.getElementById('nextLevel');if(next)next.addEventListener('click',nextLevel);
@@ -284,8 +311,8 @@ let initialized=false,rafStarted=false;
 function init(){
  if(initialized)return;
  initialized=true;
- levelLabel.textContent='УРОВЕНЬ 1 · ЗАЯЦ';
- levelIndex=0;
+ levelIndex=1;LEVELS=[generateLevel(levelIndex)];
+ levelLabel.textContent='УРОВЕНЬ 1 · '+LEVELS[0].name;
  makeGraph();
  resizeCanvas();
  setProgress();
