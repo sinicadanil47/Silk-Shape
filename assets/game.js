@@ -4,6 +4,7 @@ const ctx=canvas.getContext('2d',{alpha:false});
 const game=document.getElementById('game');
 const hud=document.getElementById('hud');
 const levelLabel=document.getElementById('levelLabel');
+const levelSelectButton=document.getElementById('levelSelect');
 const progressBar=document.getElementById('progress');
 const progressText=document.getElementById('progressText');
 const forwardButton=document.getElementById('forward');
@@ -123,16 +124,29 @@ canvas.addEventListener('pointerdown',e=>{
  e.preventDefault();const r=canvas.getBoundingClientRect();tapAt(e.clientX-r.left,e.clientY-r.top);
 },{passive:false});
 forwardButton.addEventListener('click',startMove);
+levelSelectButton.addEventListener('click',showLevelPicker);
 rotateButton.addEventListener('click',()=>{if(state===STATE.PLAYING)rotateArrow(bug.currentNode);});
-function restart(){
- state=STATE.PLAYING;loseTimer=0;winTimer=0;particles=[];screen.style.display='none';screen.className='';
- makeGraph();setProgress();refreshControls();
-}
-function nextLevel(){
- if(levelIndex>=LEVELS.length-1)return;
- levelIndex++;state=STATE.PLAYING;loseTimer=0;winTimer=0;particles=[];screen.style.display='none';screen.className='';
+function loadLevel(index){
+ if(index<0||index>=LEVELS.length)return;
+ levelIndex=index;state=STATE.PLAYING;loseTimer=0;winTimer=0;particles=[];
+ screen.style.display='none';screen.className='';
  levelLabel.textContent='УРОВЕНЬ '+(levelIndex+1)+' · '+LEVELS[levelIndex].name;
  makeGraph();setProgress();refreshControls();
+}
+function restart(){loadLevel(levelIndex);}
+function nextLevel(){
+ if(levelIndex>=LEVELS.length-1)return;
+ loadLevel(levelIndex+1);
+}
+function showLevelPicker(){
+ if(state===STATE.MOVING)return;
+ screen.className='modal';screen.style.display='flex';
+ screen.innerHTML='<div class="card level-picker"><div class="eyebrow">SILK &amp; SHAPE</div><h1>Выбор уровня</h1><p class="subtitle">Выбери фигуру, которую хочешь сплести.</p>'+LEVELS.map((level,i)=>'<button type="button" class="level-option'+(i===levelIndex?' current':'')+'" data-level="'+i+'"><span>УРОВЕНЬ '+(i+1)+'</span><strong>'+level.title+'</strong>'+(i===levelIndex?'<small>ТЕКУЩИЙ</small>':'')+'</button>').join('')+'<button type="button" class="picker-cancel" id="closeLevelPicker">НАЗАД</button></div>';
+ screen.querySelectorAll('[data-level]').forEach(button=>button.addEventListener('click',()=>loadLevel(Number(button.dataset.level))));
+ document.getElementById('closeLevelPicker').addEventListener('click',()=>{
+  screen.style.display='none';screen.className='';
+  if(state===STATE.WIN)showEnd(true);else if(state===STATE.LOSE)showEnd(false);
+ });
 }
 function lose(){
  if(state===STATE.LOSE||state===STATE.WIN)return;
