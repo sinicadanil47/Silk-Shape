@@ -36,3 +36,5 @@ button:disabled{opacity:.48;filter:saturate(.55);cursor:default}
 #screen .level-option.current{outline:2px solid #78865B;background:#f7f2e9}
 #screen .picker-cancel{background:#78865B;box-shadow:0 4px 0 #4f603b}
 @media(max-width:360px){#levelSelect{padding:8px 8px;font-size:9px}}
+
+.level-entry{display:flex;flex-direction:column;gap:8px;margin:12px 0 16px;font:800 10px system-ui,sans-serif;letter-spacing:.12em;color:#90795e;text-align:left}.level-entry input{width:100%;min-height:48px;border:1px solid #d4c3ac;border-radius:12px;padding:10px 13px;background:#fffaf1;color:#5C4D3C;font:700 20px system-ui,sans-serif;letter-spacing:normal;outline-color:#78865B}#screen .card #goLevel{background:#C85A32;color:#fff}
