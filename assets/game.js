@@ -289,7 +289,6 @@ function init(){
  makeGraph();
  resizeCanvas();
  setProgress();
- refreshControls();
  if(!rafStarted){rafStarted=true;requestAnimationFrame(frame);}
 }
 function boot(){
