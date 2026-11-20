@@ -50,7 +50,7 @@ const C=['#D9534F','#2A9D8F','#477DA8','#E9C46A'],INK='#5C4D3C',PAPER='#F4EFE6',
 let W=0,H=0,D=1,last=0,time=0,scene='start',level=0,audio=null,pegs=[],edges=[],spiders=[],particles=[],grain=[],panelTimer=null;
 const levels=[
 {name:'СЕРДЕЧКО',speed:76,paths:[{c:0,p:[[.50,.67],[.27,.49],[.18,.34],[.20,.23],[.31,.19],[.41,.24],[.50,.34],[.59,.24],[.69,.19],[.80,.23],[.82,.34],[.73,.49]]}]},
-{name:'ДОМИК',speed:91,paths:[{c:0,p:[[.25,.60],[.25,.40],[.50,.20],[.75,.40],[.75,.60],[.25,.60]]}]},
+{name:'ДОМИК',speed:91,paths:[{c:0,p:[[.25,.60],[.25,.40],[.50,.20],[.75,.40],[.75,.60]]}]},
 {name:'КОРАБЛИК',speed:105,paths:[{c:2,p:[[.19,.59],[.81,.59],[.68,.72],[.32,.72]]},{c:0,p:[[.50,.19],[.50,.56],[.75,.56]]}]},
 {name:'КОТЁНОК',speed:116,paths:[{c:1,p:[[.24,.34],[.19,.15],[.39,.27],[.50,.25],[.61,.27],[.81,.15],[.76,.34],[.82,.48],[.75,.64],[.62,.73],[.38,.73],[.25,.64],[.18,.48]]},{c:0,p:[[.38,.48],[.44,.52],[.50,.48],[.56,.52],[.62,.48],[.50,.61]]}]},
 {name:'БАБОЧКА',speed:132,paths:[{c:2,p:[[.50,.25],[.29,.17],[.17,.31],[.30,.48],[.50,.57],[.70,.48],[.83,.31],[.71,.17]]},{c:0,p:[[.50,.25],[.50,.57],[.43,.72],[.50,.66],[.57,.72]]}]}
@@ -153,7 +153,8 @@ function drawBug(s){
 function draw(){
  background();
  for(const e of edges){
-  if(e.drawn)roundedLine(e.a,e.b,C[e.color],5,.98);
+  if(e.failed)roundedLine(e.a,e.b,'#C7433E',7,.98);
+  else if(e.drawn)roundedLine(e.a,e.b,C[e.color],5,.98);
   else{ctx.save();ctx.setLineDash([3,7]);ctx.lineDashOffset=-time*5;ctx.strokeStyle=e.failed?'#C7433E':C[e.color];ctx.globalAlpha=.42;ctx.lineWidth=2.4;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(e.a.x,e.a.y);ctx.lineTo(e.b.x,e.b.y);ctx.stroke();ctx.restore();}
  }
  pegs.forEach(drawPeg);
