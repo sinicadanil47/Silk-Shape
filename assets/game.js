@@ -13,28 +13,34 @@ const TAU=Math.PI*2;
 const PAPER='#F4EFE6',INK='#5C4D3C',THREAD='#C85A32';
 const STATE={PLAYING:'PLAYING',MOVING:'MOVING',LOSE:'LOSE',WIN:'WIN'};
 let state=STATE.PLAYING,W=0,H=0,D=1,last=0,clock=0,bug=null,nodes=[],edges=[],particles=[],grain=[],loseTimer=0,winTimer=0;
-const rabbitPoints=[
- [.35,.18], // 0 left ear tip
- [.28,.36], // 1 left ear base outer
- [.42,.36], // 2 left ear base inner
- [.65,.18], // 3 right ear tip
- [.58,.36], // 4 right ear base inner
- [.72,.36], // 5 right ear base outer
- [.50,.39], // 6 forehead / nose bridge
- [.22,.50], // 7 left cheek
- [.78,.50], // 8 right cheek
- [.31,.65], // 9 lower left
- [.50,.70], // 10 chin
- [.69,.65]  // 11 lower right
+const LEVELS=[
+ {
+  name:'ЗАЯЦ',title:'Заяц',start:2,
+  points:[
+   [.35,.18],[.28,.36],[.42,.36],[.65,.18],[.58,.36],[.72,.36],
+   [.50,.39],[.22,.50],[.78,.50],[.31,.65],[.50,.70],[.69,.65]
+  ],
+  links:[[0,1],[1,2],[2,0],[3,4],[4,5],[5,3],[2,6],[4,6],[6,8],[8,11],[11,10],[10,9],[9,7],[7,6]]
+ },
+ {
+  name:'ПОНЧИК',title:'Пончик',start:0,
+  points:Array.from({length:8},(_,i)=>{
+   const a=-Math.PI/2+i*Math.PI/4;
+   return [.50+.24*Math.cos(a),.46+.24*Math.sin(a)];
+  }),
+  links:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,0],[0,4]]
+ },
+ {
+  name:'ЗВЕЗДА',title:'Звезда',start:1,
+  points:Array.from({length:10},(_,i)=>{
+   const a=-Math.PI/2+i*Math.PI/5,r=i%2===0?.245:.115;
+   return [.50+r*Math.cos(a),.46+r*Math.sin(a)];
+  }),
+  links:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8],[8,9],[9,0],[1,7]]
+ }
 ];
-// Two closed ear contours, two short ear-to-forehead joins, and one rounded face contour.
-// Exactly two odd-degree vertices (2 and 4): an Euler trail exists from 2 to 4.
-const rabbitLinks=[
- [0,1],[1,2],[2,0],
- [3,4],[4,5],[5,3],
- [2,6],[4,6],
- [6,8],[8,11],[11,10],[10,9],[9,7],[7,6]
-];
+let levelIndex=0;
+let rabbitPoints=LEVELS[0].points,rabbitLinks=LEVELS[0].links;
 function resizeCanvas(){
  const r=game.getBoundingClientRect();W=r.width;H=r.height;D=Math.min(window.devicePixelRatio||1,2);
  canvas.width=Math.round(W*D);canvas.height=Math.round(H*D);ctx.setTransform(D,0,0,D,0,0);
@@ -48,16 +54,24 @@ function installResizeHandling(){
  if('ResizeObserver' in window)new ResizeObserver(resizeCanvas).observe(game);
 }
 function makeGraph(){
+ const level=LEVELS[levelIndex];
+ rabbitPoints=level.points;rabbitLinks=level.links;
  nodes=rabbitPoints.map((p,id)=>({id,nx:p[0],ny:p[1],x:p[0]*W,y:p[1]*H,targetNodeId:null,neighbors:[],pulse:0}));
  edges=rabbitLinks.map(([ai,bi],id)=>{
   const a=nodes[ai],b=nodes[bi],e={id,a,b,used:false,phase:id*.63};
   a.neighbors.push({node:b,edge:e});b.neighbors.push({node:a,edge:e});return e;
  });
- const tour=makeEulerTour(2);
- if(tour.length!==edges.length)throw new Error('Граф зайца не является эйлеровым.');
+ const odd=nodes.filter(n=>n.neighbors.length%2===1).map(n=>n.id);
+ if(odd.length!==0&&odd.length!==2)throw new Error('Уровень не имеет эйлерова маршрута.');
+ const startId=level.start;
+ const tour=makeEulerTour(startId);
+ if(tour.length!==edges.length)throw new Error('Граф уровня не связен или не имеет эйлерова маршрута.');
+ const endId=tour.length?tour[tour.length-1].to:startId;
+ if(odd.length===2&&!odd.includes(startId))throw new Error('Неверная стартовая точка эйлерова маршрута.');
+ if(odd.length===0&&endId!==startId)throw new Error('Некорректный эйлеров цикл.');
  for(const step of tour)if(nodes[step.from].targetNodeId===null)nodes[step.from].targetNodeId=step.to;
  for(const n of nodes)if(n.targetNodeId===null)n.targetNodeId=n.neighbors[0]?.node.id??null;
- const start=nodes[2];
+ const start=nodes[startId];
  bug={x:start.x,y:start.y,nx:start.nx,ny:start.ny,currentNode:start,from:null,to:null,edge:null,t:0,speed:205,angle:Math.atan2(nodes[start.targetNodeId].y-start.y,nodes[start.targetNodeId].x-start.x),progress:0,broken:false,swing:0,hang:0,vy:0};
 }
 function makeEulerTour(start){
@@ -76,7 +90,7 @@ function setProgress(){
 function refreshControls(){
  const moving=state===STATE.MOVING,finished=state===STATE.WIN||state===STATE.LOSE;
  forwardButton.disabled=moving||finished;rotateButton.disabled=moving||finished;
- forwardButton.textContent=bug.progress===0?'СТАРТ':'ВПЕРЁД';
+ forwardButton.textContent='ВПЕРЁД';
  const node=bug.currentNode;
  const next=node?.neighbors.find(v=>v.node.id===node.targetNodeId);
  const invalid=!next||next.edge.used;
@@ -103,7 +117,6 @@ function tapAt(x,y){
  let nearest=null,min=45;
  for(const n of nodes){const d=Math.hypot(x-n.x,y-n.y);if(d<=min){nearest=n;min=d;}}
  if(!nearest)return;
- if(state===STATE.PLAYING&&nearest===bug.currentNode){startMove();return;}
  rotateArrow(nearest);
 }
 canvas.addEventListener('pointerdown',e=>{
@@ -112,7 +125,13 @@ canvas.addEventListener('pointerdown',e=>{
 forwardButton.addEventListener('click',startMove);
 rotateButton.addEventListener('click',()=>{if(state===STATE.PLAYING)rotateArrow(bug.currentNode);});
 function restart(){
- state=STATE.PLAYING;loseTimer=0;winTimer=0;particles=[];screen.style.display='none';
+ state=STATE.PLAYING;loseTimer=0;winTimer=0;particles=[];screen.style.display='none';screen.className='';
+ makeGraph();setProgress();refreshControls();
+}
+function nextLevel(){
+ if(levelIndex>=LEVELS.length-1)return;
+ levelIndex++;state=STATE.PLAYING;loseTimer=0;winTimer=0;particles=[];screen.style.display='none';screen.className='';
+ levelLabel.textContent='УРОВЕНЬ '+(levelIndex+1)+' · '+LEVELS[levelIndex].name;
  makeGraph();setProgress();refreshControls();
 }
 function lose(){
@@ -146,8 +165,12 @@ function update(dt){
  particles=particles.filter(p=>p.life>0);
 }
 function showEnd(won){
+ const level=LEVELS[levelIndex],hasNext=levelIndex<LEVELS.length-1;
  screen.className='modal';screen.style.display='flex';
- screen.innerHTML='<div class="card"><div class="eyebrow">SILK &amp; SHAPE · УРОВЕНЬ 1</div><h1>'+(won?'Заяц сплетён!':'Засада! Нить запуталась')+'</h1><p class="subtitle">'+(won?'Все линии пройдены. Получился цельный силуэт зайца.':'Жучок выбрал уже сплетённую линию или попал в тупик.')+'</p><button class="primary" id="again">ЗАНОВО</button></div>';
+ const title=won?(levelIndex===0?'Заяц сплетён!':levelIndex===1?'Пончик готов!':'Звезда сплетена!'):'Засада! Нить запуталась';
+ const subtitle=won?'Все линии пройдены. Отличная работа!':'Жучок выбрал уже сплетённую линию или попал в тупик.';
+ screen.innerHTML='<div class="card"><div class="eyebrow">SILK &amp; SHAPE · УРОВЕНЬ '+(levelIndex+1)+'</div><h1>'+title+'</h1><p class="subtitle">'+subtitle+'</p>'+(won&&hasNext?'<button class="primary" id="nextLevel">СЛЕДУЮЩИЙ УРОВЕНЬ</button>':'')+'<button class="primary" id="again">ЗАНОВО</button></div>';
+ const next=document.getElementById('nextLevel');if(next)next.addEventListener('click',nextLevel);
  document.getElementById('again').addEventListener('click',restart);
 }
 function pluck(){if(!soundOn)return;try{const A=window.AudioContext||window.webkitAudioContext;if(!pluck.audio)pluck.audio=new A();const a=pluck.audio;if(a.state==='suspended')a.resume();const o=a.createOscillator(),g=a.createGain();o.type='triangle';o.frequency.value=480;g.gain.setValueAtTime(.035,a.currentTime);g.gain.exponentialRampToValueAtTime(.0001,a.currentTime+.19);o.connect(g);g.connect(a.destination);o.start();o.stop(a.currentTime+.2);}catch(e){}}
@@ -219,6 +242,7 @@ function init(){
  if(initialized)return;
  initialized=true;
  levelLabel.textContent='УРОВЕНЬ 1 · ЗАЯЦ';
+ levelIndex=0;
  makeGraph();
  resizeCanvas();
  const firstTarget=nodes[bug.currentNode.targetNodeId];
