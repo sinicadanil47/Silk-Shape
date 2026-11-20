@@ -7,8 +7,6 @@ const levelLabel=document.getElementById('levelLabel');
 const levelSelectButton=document.getElementById('levelSelect');
 const progressBar=document.getElementById('progress');
 const progressText=document.getElementById('progressText');
-const forwardButton=document.getElementById('forward');
-const rotateButton=document.getElementById('rotate');
 const screen=document.getElementById('screen');
 const TAU=Math.PI*2;
 const PAPER='#F4EFE6',INK='#5C4D3C',THREAD='#C85A32';
@@ -90,7 +88,7 @@ function mapBoardPoint(nx,ny){
 function resizeCanvas(){
  const r=game.getBoundingClientRect();W=r.width;H=r.height;D=Math.min(window.devicePixelRatio||1,2);
  canvas.width=Math.round(W*D);canvas.height=Math.round(H*D);ctx.setTransform(D,0,0,D,0,0);
- boardSize=Math.min(W*.94,H*.82);
+ boardSize=Math.min(W*.98,H*.93);
  boardLeft=(W-boardSize)/2;boardTop=(H-boardSize)/2;
  grain=Array.from({length:Math.floor(W*H/780)},()=>({x:Math.random()*W,y:Math.random()*H,r:.3+Math.random()*.8,a:.025+Math.random()*.065}));
  for(const n of nodes){const p=mapBoardPoint(n.nx,n.ny);n.x=p.x;n.y=p.y;}
@@ -120,15 +118,10 @@ function makeGraph(){
  // Randomize every peg's initial arrow independently on each level start/restart.
  // The player must inspect the graph and rotate arrows to construct a valid one-pass route.
  for(const n of nodes){
-  if(n.neighbors.length){
-   const choice=Math.floor(Math.random()*n.neighbors.length);
-   n.targetNodeId=n.neighbors[choice].node.id;
-  }else{
-   n.targetNodeId=null;
-  }
+  n.targetNodeId=null;
  }
  const start=nodes[startId];
- bug={x:start.x,y:start.y,nx:start.nx,ny:start.ny,currentNode:start,from:null,to:null,edge:null,t:0,speed:205,angle:Math.atan2(nodes[start.targetNodeId].y-start.y,nodes[start.targetNodeId].x-start.x),progress:0,broken:false,swing:0,hang:0,vy:0};
+ bug={x:start.x,y:start.y,nx:start.nx,ny:start.ny,currentNode:start,from:null,to:null,edge:null,t:0,speed:205,angle:0,progress:0,broken:false,swing:0,hang:0,vy:0};
 }
 function makeEulerTour(start){
  const adj=nodes.map(()=>[]);for(const e of edges){adj[e.a.id].push(e);adj[e.b.id].push(e);}
@@ -143,50 +136,31 @@ function makeEulerTour(start){
 function setProgress(){
  const p=Math.round(bug.progress/edges.length*100);progressBar.style.width=p+'%';progressText.textContent=p+'%';
 }
-function refreshControls(){
- const moving=state===STATE.MOVING,finished=state===STATE.WIN||state===STATE.LOSE;
- forwardButton.disabled=moving||finished;rotateButton.disabled=moving||finished;
- forwardButton.textContent='ВПЕРЁД';
- const node=bug.currentNode;
- const next=node?.neighbors.find(v=>v.node.id===node.targetNodeId);
- const invalid=!next||next.edge.used;
- forwardButton.classList.toggle('is-warning',invalid);
-}
-function rotateArrow(node){
- if((state!==STATE.PLAYING&&state!==STATE.MOVING)||!node||!node.neighbors.length)return;
- const list=node.neighbors,index=list.findIndex(v=>v.node.id===node.targetNodeId);
- const next=list[(index+1+list.length)%list.length];
- node.targetNodeId=next.node.id;node.pulse=1;playPluck();if(node===bug.currentNode)refreshControls();
-}
-function startMove(){
- if(state!==STATE.PLAYING)return;
+function startMove(target){
+ if(state!==STATE.PLAYING||!target||target===bug.currentNode)return;
  const from=bug.currentNode;
- if(!from||from.targetNodeId===null){lose();return;}
- const to=nodes[from.targetNodeId];
- const link=from.neighbors.find(v=>v.node===to);
- if(!to||!link||link.edge.used){lose();return;}
- bug.from=from;bug.to=to;bug.edge=link.edge;bug.t=0;bug.x=from.x;bug.y=from.y;
- bug.angle=Math.atan2(to.y-from.y,to.x-from.x);state=STATE.MOVING;refreshControls();
+ const link=from.neighbors.find(v=>v.node===target);
+ if(!link){from.pulse=1;return;}
+ bug.from=from;bug.to=target;bug.edge=link.edge;bug.t=0;bug.x=from.x;bug.y=from.y;
+ bug.angle=Math.atan2(target.y-from.y,target.x-from.x);state=STATE.MOVING;
 }
 function tapAt(x,y){
- if(state!==STATE.PLAYING&&state!==STATE.MOVING)return;
- let nearest=null,min=45;
+ if(state!==STATE.PLAYING)return;
+ let nearest=null,min=50;
  for(const n of nodes){const d=Math.hypot(x-n.x,y-n.y);if(d<=min){nearest=n;min=d;}}
- if(!nearest)return;
- rotateArrow(nearest);
+ if(!nearest||nearest===bug.currentNode)return;
+ startMove(nearest);
 }
 canvas.addEventListener('pointerdown',e=>{
  e.preventDefault();const r=canvas.getBoundingClientRect();tapAt(e.clientX-r.left,e.clientY-r.top);
 },{passive:false});
-forwardButton.addEventListener('click',startMove);
 levelSelectButton.addEventListener('click',showLevelPicker);
-rotateButton.addEventListener('click',()=>{if(state===STATE.PLAYING)rotateArrow(bug.currentNode);});
 function loadLevel(index){
  if(index<0||index>=LEVELS.length)return;
  levelIndex=index;state=STATE.PLAYING;loseTimer=0;winTimer=0;particles=[];
  screen.style.display='none';screen.className='';
  levelLabel.textContent='УРОВЕНЬ '+(levelIndex+1)+' · '+LEVELS[levelIndex].name;
- makeGraph();setProgress();refreshControls();
+ makeGraph();setProgress();
 }
 function restart(){loadLevel(levelIndex);}
 function nextLevel(){
@@ -206,10 +180,10 @@ function showLevelPicker(){
 function lose(){
  if(state===STATE.LOSE||state===STATE.WIN)return;
  state=STATE.LOSE;loseTimer=0;bug.from=bug.currentNode;
- if(bug.edge){bug.from=bug.from||bug.currentNode;bug.edge=null;}
+ if(bug.edge){bug.edge=null;}
  bug.broken=true;bug.hang=0;bug.vy=12;
  for(let i=0;i<28;i++)particles.push({x:bug.x,y:bug.y,vx:(Math.random()-.5)*120,vy:(Math.random()-.7)*110,life:1,color:i%2?'#C85A32':'#7A5940',r:1.5+Math.random()*3});
- refreshControls();
+
 }
 function win(){state=STATE.WIN;winTimer=0;refreshControls();for(let b=0;b<5;b++){const ox=W*(.2+Math.random()*.6),oy=H*(.2+Math.random()*.35);for(let i=0;i<22;i++){const a=TAU*i/22,sp=45+Math.random()*110;particles.push({x:ox,y:oy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1.6,color:['#C85A32','#D9A441','#588157','#477DA8'][b%4],r:1.5+Math.random()*3});}}}
 function update(dt){
@@ -220,9 +194,14 @@ function update(dt){
   bug.t=Math.min(1,bug.t+bug.speed*dt/dist);bug.x=bug.from.x+dx*bug.t;bug.y=bug.from.y+dy*bug.t;
   bug.nx=bug.from.nx+(bug.to.nx-bug.from.nx)*bug.t;bug.ny=bug.from.ny+(bug.to.ny-bug.from.ny)*bug.t;
   if(bug.t>=1){
-   bug.edge.used=true;bug.progress++;bug.currentNode=bug.to;bug.x=bug.to.x;bug.y=bug.to.y;bug.nx=bug.to.nx;bug.ny=bug.to.ny;
-   bug.from=null;bug.to=null;bug.edge=null;bug.t=0;state=STATE.PLAYING;playPluck();setProgress();
-   if(edges.every(e=>e.used))win();else refreshControls();
+   const arrived=bug.to,travelledFrom=bug.from,travelledEdge=bug.edge;
+   bug.currentNode=arrived;bug.x=arrived.x;bug.y=arrived.y;bug.nx=arrived.nx;bug.ny=arrived.ny;
+   bug.from=travelledFrom;bug.to=null;bug.edge=null;bug.t=0;
+   if(travelledEdge.used){bug.broken=true;lose();}
+   else{
+    travelledEdge.used=true;bug.progress++;bug.from=null;state=STATE.PLAYING;playPluck();setProgress();
+    if(edges.every(e=>e.used))win();
+   }
   }
  }
  if(state===STATE.LOSE){
@@ -236,8 +215,8 @@ function update(dt){
 function showEnd(won){
  const level=LEVELS[levelIndex],hasNext=levelIndex<LEVELS.length-1;
  screen.className='modal';screen.style.display='flex';
- const title=won?(levelIndex===0?'Заяц сплетён!':levelIndex===1?'Пончик готов!':'Звезда сплетена!'):'Засада! Нить запуталась';
- const subtitle=won?'Все линии пройдены. Отличная работа!':'Жучок выбрал уже сплетённую линию или попал в тупик.';
+ const title=won?(levelIndex===0?'Заяц сплетён!':levelIndex===1?'Пончик готов!':levelIndex===2?'Корона готова!':'Кристалл сплетён!'):'Засада! Нить уже пройдена';
+ const subtitle=won?'Все линии пройдены ровно по одному разу. Отличная работа!':'Жучок повторно прошёл по уже использованной нити и запутался.';
  screen.innerHTML='<div class="card"><div class="eyebrow">SILK &amp; SHAPE · УРОВЕНЬ '+(levelIndex+1)+'</div><h1>'+title+'</h1><p class="subtitle">'+subtitle+'</p>'+(won&&hasNext?'<button class="primary" id="nextLevel">СЛЕДУЮЩИЙ УРОВЕНЬ</button>':'')+'<button class="primary" id="again">ЗАНОВО</button></div>';
  const next=document.getElementById('nextLevel');if(next)next.addEventListener('click',nextLevel);
  document.getElementById('again').addEventListener('click',restart);
@@ -272,11 +251,6 @@ function drawPeg(n){
  const head=ctx.createRadialGradient(-4,-6,1,0,-2,12);head.addColorStop(0,'#FFF2D6');head.addColorStop(.4,'#D9B78D');head.addColorStop(.8,'#A77A50');head.addColorStop(1,'#68472F');
  ctx.fillStyle=head;ctx.strokeStyle='#684A32';ctx.lineWidth=1;ctx.beginPath();ctx.ellipse(0,-3,10,7.5,0,0,TAU);ctx.fill();ctx.stroke();
  ctx.strokeStyle='rgba(255,246,224,.8)';ctx.beginPath();ctx.arc(-1,-4,6,-.2,2.6);ctx.stroke();
- const target=nodes[n.targetNodeId];if(target){
-  const angle=Math.atan2(target.y-n.y,target.x-n.x);ctx.save();ctx.rotate(angle);ctx.translate(17,0);
-  ctx.fillStyle='#F07832';ctx.strokeStyle='#fff';ctx.lineWidth=2.2;ctx.lineJoin='round';
-  ctx.beginPath();ctx.moveTo(10,0);ctx.lineTo(-5,-7);ctx.lineTo(-5,7);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
- }
  if(n.pulse>0){ctx.strokeStyle='rgba(240,120,50,'+Math.min(.8,n.pulse)+')';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,-3,15+n.pulse*7,0,TAU);ctx.stroke();}
  ctx.restore();
 }
@@ -314,8 +288,6 @@ function init(){
  levelIndex=0;
  makeGraph();
  resizeCanvas();
- const firstTarget=nodes[bug.currentNode.targetNodeId];
- if(firstTarget)bug.angle=Math.atan2(firstTarget.y-bug.y,firstTarget.x-bug.x);
  setProgress();
  refreshControls();
  if(!rafStarted){rafStarted=true;requestAnimationFrame(frame);}
