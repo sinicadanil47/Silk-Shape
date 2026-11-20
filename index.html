@@ -166,14 +166,15 @@ function draw(){
   else if(e.drawn)roundedLine(e.a,e.b,C[e.color],5,.98);
   else{ctx.save();ctx.setLineDash([3,7]);ctx.lineDashOffset=-time*5;ctx.strokeStyle=e.failed?'#C7433E':C[e.color];ctx.globalAlpha=.42;ctx.lineWidth=2.4;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(e.a.x,e.a.y);ctx.lineTo(e.b.x,e.b.y);ctx.stroke();ctx.restore();}
  }
+ spiders.forEach(s=>{if(scene==='playing'&&s.t>0&&!s.broken)roundedLine(s.from,{x:s.x,y:s.y},C[s.color],5,.98);});
  pegs.forEach(drawPeg);
- spiders.forEach(s=>{if(scene==='playing'&&s.t>0&&!s.broken)roundedLine(s.from,{x:s.x,y:s.y},C[s.color],5,.98);drawBug(s);});
+ spiders.forEach(drawBug);
  if(scene==='start')drawDemo();
  for(const p of particles){ctx.save();ctx.globalAlpha=Math.max(0,p.life);ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,TAU);ctx.fill();ctx.restore();}
 }
 function demoPaths(){const star=[[.50,.27],[.61,.45],[.82,.45],[.65,.58],[.72,.79],[.50,.66],[.28,.79],[.35,.58],[.18,.45],[.39,.45]],flower=[[.50,.22],[.61,.34],[.76,.31],[.72,.47],[.83,.59],[.66,.65],[.62,.81],[.50,.70],[.38,.81],[.34,.65],[.17,.59],[.28,.47],[.24,.31],[.39,.34]];return demo.cycle%2?[flower,star]:[star,flower];}
 function resetDemo(){demo.bugs=demoPaths().map((pts,i)=>({pts,color:i===0?0:1,seg:0,t:0,x:pts[0][0]*W,y:pts[0][1]*H,done:false,angle:0,trail:[]}));demo.fade=0;demo.hold=0;}
-function drawDemo(){if(!demo.bugs.length)resetDemo();let all=true;for(const b of demo.bugs){const pts=b.pts,a=pts[b.seg],z=pts[(b.seg+1)%pts.length],ax=a[0]*W,ay=a[1]*H,bx=z[0]*W,by=z[1]*H,len=Math.hypot(bx-ax,by-ay)||1;if(!b.done){all=false;b.t=Math.min(1,b.t+dtDemo*75/len);b.x=ax+(bx-ax)*b.t;b.y=ay+(by-ay)*b.t;b.angle=Math.atan2(by-ay,bx-ax);if(b.t>=1){b.trail.push({a:{x:ax,y:ay},b:{x:bx,y:by}});b.seg++;b.t=0;if(b.seg>=pts.length)b.done=true;}}ctx.save();ctx.globalAlpha=1-demo.fade;for(const line of b.trail)roundedLine(line.a,line.b,C[b.color],4,.9);if(!b.done)roundedLine({x:ax,y:ay},{x:b.x,y:b.y},C[b.color],4,.9);drawBug(b);ctx.restore();}if(all){demo.hold+=dtDemo;if(demo.hold>1.1)demo.fade=Math.min(1,demo.fade+dtDemo*.48);}if(demo.fade>=1){demo.cycle++;resetDemo();}}
+function drawDemo(){if(!demo.bugs.length)resetDemo();let all=true;for(const b of demo.bugs){const pts=b.pts,a=pts[b.seg],z=pts[(b.seg+1)%pts.length],ax=a[0]*W,ay=a[1]*H,bx=z[0]*W,by=z[1]*H,len=Math.hypot(bx-ax,by-ay)||1;if(!b.done){all=false;b.t=Math.min(1,b.t+dtDemo*75/len);b.x=ax+(bx-ax)*b.t;b.y=ay+(by-ay)*b.t;b.angle=Math.atan2(by-ay,bx-ax);if(b.t>=1){b.trail.push({a:{x:ax,y:ay},b:{x:bx,y:by}});b.seg++;b.t=0;if(b.seg>=pts.length)b.done=true;}}ctx.save();ctx.globalAlpha=1-demo.fade;for(const line of b.trail)roundedLine(line.a,line.b,C[b.color],4,.9*(1-demo.fade));if(!b.done)roundedLine({x:ax,y:ay},{x:b.x,y:b.y},C[b.color],4,.9*(1-demo.fade));drawBug(b);ctx.restore();}if(all){demo.hold+=dtDemo;if(demo.hold>1.1)demo.fade=Math.min(1,demo.fade+dtDemo*.48);}if(demo.fade>=1){demo.cycle++;resetDemo();}}
 const baseUpdate=update;update=function(dt){dtDemo=dt;baseUpdate(dt);if(scene==='start'&&!demo.bugs.length)resetDemo();};
 function frame(ts){const dt=Math.min(.04,(ts-last)/1000||0);last=ts;update(dt);draw();requestAnimationFrame(frame);}
 requestAnimationFrame(frame);
