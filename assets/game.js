@@ -79,7 +79,7 @@ function refreshControls(){
  forwardButton.classList.toggle('is-warning',invalid);
 }
 function rotateArrow(node){
- if(state!==STATE.PLAYING||!node||!node.neighbors.length)return;
+ if((state!==STATE.PLAYING&&state!==STATE.MOVING)||!node||!node.neighbors.length)return;
  const list=node.neighbors,index=list.findIndex(v=>v.node.id===node.targetNodeId);
  const next=list[(index+1+list.length)%list.length];
  node.targetNodeId=next.node.id;node.pulse=1;playPluck();if(node===bug.currentNode)refreshControls();
