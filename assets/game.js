@@ -72,16 +72,21 @@ function generateLevel(levelNumber){
    return {name:template.name,title:template.name,points,links,start:0,solution:eulerRoute(points,links).length,levelNumber:number,complexity:{nodes:n,edges:links.length,branches:degree.filter(d=>d>=4).length}};
   }
  }
- // Safe deterministic fallback: a perimeter and two distinct chord triangles.
- const points=fallbackPoints||sampleClosedPath(template.p,count),n=points.length,links=points.map((_,i)=>[i,(i+1)%n]),occupied=new Set(links.map(([a,b])=>a<b?a+':'+b:b+':a'));let added=0;
- for(let offset=0;offset<n&&added<2;offset++){
-  const tri=[offset%n,(offset+2)%n,(offset+4)%n],loop=[[tri[0],tri[1]],[tri[1],tri[2]],[tri[2],tri[0]]];
-  if(new Set(tri).size<3||loop.some(([a,b])=>occupied.has(a<b?a+':'+b:b+':a')))continue;
-  for(const [a,b] of loop){links.push([a,b]);occupied.add(a<b?a+':'+b:b+':a');}added++;
+ // Deterministic fallback preserves the seeded silhouette and requested difficulty.
+ const points=fallbackPoints||sampleClosedPath(template.p,count),n=points.length;
+ const links=points.map((_,i)=>[i,(i+1)%n]);
+ const occupied=new Set(links.map(([x,y])=>x<y?x+':'+y:y+':'+x));
+ let added=0;
+ for(let i=0;i<n&&added<targetCycles;i++)for(let j=i+1;j<n&&added<targetCycles;j++)for(let k=j+1;k<n&&added<targetCycles;k++){
+  const tri=[[i,j],[j,k],[k,i]];
+  if(tri.some(([x,y])=>occupied.has(x<y?x+':'+y:y+':'+x)))continue;
+  for(const [x,y] of tri){links.push([x,y]);occupied.add(x<y?x+':'+y:y+':'+x);}
+  added++;
  }
  if(!validateGenerated(points,links))throw new Error('Не удалось построить уровень '+number);
- const degree=Array(n).fill(2);for(const [a,b] of links){degree[a]++;degree[b]++;}
+ const degree=Array(n).fill(2);for(const [x,y] of links){degree[x]++;degree[y]++;}
  return {name:template.name,title:template.name,points,links,start:0,solution:eulerRoute(points,links).length,levelNumber:number,complexity:{nodes:n,edges:links.length,branches:degree.filter(d=>d>=4).length}};
+
 }
 let rabbitPoints=[],rabbitLinks=[];
 let boardSize=0,boardLeft=0,boardTop=0;
