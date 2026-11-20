@@ -39,12 +39,12 @@ function validateGenerated(points,links){
  const n=points.length;if(n<6||n>14||links.length<n)return false;
  const deg=Array(n).fill(0),adj=Array.from({length:n},()=>[]),keys=new Set();
  for(const [a,b] of links){if(!Number.isInteger(a)||!Number.isInteger(b)||a===b||a<0||b<0||a>=n||b>=n)return false;const k=a<b?a+':'+b:b+':'+a;if(keys.has(k))return false;keys.add(k);deg[a]++;deg[b]++;adj[a].push(b);adj[b].push(a);}
- if(deg.some(d=>d%2)||deg.filter(d=>d>=4).length<2)return false;
+ if(deg.some(d=>d%2))return false;
  const seen=new Set([0]),todo=[0];while(todo.length){for(const v of adj[todo.pop()])if(!seen.has(v)){seen.add(v);todo.push(v);}}
  if(seen.size!==n)return false;const route=eulerRoute(points,links);return route.length===links.length&&new Set(route.map(x=>x.id)).size===links.length;
 }
 function generateLevel(levelNumber){
- const number=Math.max(1,Math.floor(Number(levelNumber)||1));
+ const number=Math.min(30,Math.max(1,Math.floor(Number(levelNumber)||1)));
  const seed=(Math.imul(number,0x9E3779B1)^Math.imul(number>>>2,0x85EBCA6B))>>>0;
  const rng=seededRandom(seed),tpl=TEMPLATES[(number-1)%TEMPLATES.length];
  const mirror=rng()<.5,angle=(rng()-.5)*.1,scale=.96+rng()*.06,c=Math.cos(angle),sn=Math.sin(angle);
@@ -54,14 +54,14 @@ function generateLevel(levelNumber){
  const addLoop=loop=>{if(loop.some(([a,b])=>used.has(key(a,b))))return false;for(const [a,b] of loop){links.push([a,b]);used.add(key(a,b));}return true;};
  // One guaranteed inner triangle creates three decision pegs while preserving even degrees.
  if(!addLoop([[0,2],[2,4],[4,0]]))throw new Error('Invalid base silhouette '+number);
- const stage=number<=20?1+Math.floor((number-1)/7):Math.min(7,3+Math.floor((number-21)/160));
+ const stage=number<=5?0:number<=10?1:number<=15?1:number<=20?2:number<=25?2:3;
  const options=[];
  for(let size=3;size<=Math.min(5,n);size++){
   const choose=(from,arr)=>{if(arr.length===size){const loop=arr.map((v,i)=>[v,arr[(i+1)%size]]);if(loop.every(([a,b])=>!used.has(key(a,b)))&&loop.some(([a,b])=>a!==b))options.push(loop);return;}for(let v=from;v<n;v++)choose(v+1,arr.concat(v));};
   choose(0,[]);
  }
  for(let i=options.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[options[i],options[j]]=[options[j],options[i]];}
- let added=0;for(const loop of options){if(addLoop(loop)&&++added>=stage)break;}
+ let added=0;for(const loop of options){if(stage===0)break;if(addLoop(loop)&&++added>=stage)break;}
  if(!validateGenerated(points,links)){
   // Remove optional loops and retain the known-good perimeter + triangle graph.
   links.splice(n);used.clear();for(let i=0;i<n;i++)used.add(key(i,(i+1)%n));addLoop([[0,2],[2,4],[4,0]]);
@@ -146,7 +146,7 @@ canvas.addEventListener('pointerdown',e=>{
 },{passive:false});
 levelSelectButton.addEventListener('click',showLevelPicker);
 function loadLevel(index){
- if(!Number.isFinite(index)||index<1||index>1000000)return;
+ if(!Number.isFinite(index)||index<1||index>30)return;
  levelIndex=Math.floor(index);LEVELS=[generateLevel(levelIndex)];state=STATE.PLAYING;loseTimer=0;winTimer=0;particles=[];
  screen.style.display='none';screen.className='';
  levelLabel.textContent='УРОВЕНЬ '+levelIndex+' · '+LEVELS[0].name;
@@ -154,13 +154,13 @@ function loadLevel(index){
 }
 function restart(){loadLevel(levelIndex);}
 function nextLevel(){
- loadLevel(levelIndex+1);
+ if(levelIndex<30)loadLevel(levelIndex+1);
 }
 function showLevelPicker(){
  if(state===STATE.MOVING)return;
  screen.className='modal';screen.style.display='flex';
- screen.innerHTML='<div class="card level-picker"><div class="eyebrow">SILK &amp; SHAPE</div><h1>Выбор уровня</h1><p class="subtitle">Доступно более 1000 процедурно созданных уровней.</p><label class="level-entry">НОМЕР УРОВНЯ<input id="levelNumberInput" type="number" min="1" max="1000000" step="1" value="'+levelIndex+'"></label><button type="button" class="primary" id="goLevel">ОТКРЫТЬ УРОВЕНЬ</button><button type="button" class="picker-cancel" id="closeLevelPicker">НАЗАД</button></div>';
- document.getElementById('goLevel').addEventListener('click',()=>{const value=Number(document.getElementById('levelNumberInput').value);if(Number.isInteger(value)&&value>=1&&value<=1000000)loadLevel(value);});
+ screen.innerHTML='<div class="card level-picker"><div class="eyebrow">SILK &amp; SHAPE</div><h1>Выбор уровня</h1><p class="subtitle">В игре 30 уровней для постепенного освоения.</p><label class="level-entry">НОМЕР УРОВНЯ<input id="levelNumberInput" type="number" min="1" max="30" step="1" value="'+levelIndex+'"></label><button type="button" class="primary" id="goLevel">ОТКРЫТЬ УРОВЕНЬ</button><button type="button" class="picker-cancel" id="closeLevelPicker">НАЗАД</button></div>';
+ document.getElementById('goLevel').addEventListener('click',()=>{const value=Number(document.getElementById('levelNumberInput').value);if(Number.isInteger(value)&&value>=1&&value<=30)loadLevel(value);});
  document.getElementById('closeLevelPicker').addEventListener('click',()=>{screen.style.display='none';screen.className='';if(state===STATE.WIN)showEnd(true);else if(state===STATE.LOSE)showEnd(false);});
 }
 function lose(){
@@ -199,10 +199,10 @@ function update(dt){
  particles=particles.filter(p=>p.life>0);
 }
 function showEnd(won){
- const level=LEVELS[0],hasNext=true;
+ const level=LEVELS[0],hasNext=levelIndex<30;
  screen.className='modal';screen.style.display='flex';
  const title=won?(level.title+' сплетён!'):'Засада! Нить уже пройдена';
- const subtitle=won?'Все линии пройдены ровно по одному разу. Отличная работа!':'Жучок повторно прошёл по уже использованной нити и запутался.';
+ const subtitle=won?(hasNext?'Все линии пройдены ровно по одному разу. Отличная работа!':'Ты прошёл все 30 уровней! Отличная работа!'):'Жучок повторно прошёл по уже использованной нити и запутался.';
  screen.innerHTML='<div class="card"><div class="eyebrow">SILK &amp; SHAPE · УРОВЕНЬ '+levelIndex+'</div><h1>'+title+'</h1><p class="subtitle">'+subtitle+'</p>'+(won&&hasNext?'<button class="primary" id="nextLevel">СЛЕДУЮЩИЙ УРОВЕНЬ</button>':'')+'<button class="primary" id="again">ЗАНОВО</button></div>';
  const next=document.getElementById('nextLevel');if(next)next.addEventListener('click',nextLevel);
  document.getElementById('again').addEventListener('click',restart);
