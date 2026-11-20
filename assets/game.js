@@ -90,7 +90,7 @@ function mapBoardPoint(nx,ny){
 function resizeCanvas(){
  const r=game.getBoundingClientRect();W=r.width;H=r.height;D=Math.min(window.devicePixelRatio||1,2);
  canvas.width=Math.round(W*D);canvas.height=Math.round(H*D);ctx.setTransform(D,0,0,D,0,0);
- boardSize=Math.min(W*.86,H*.76);
+ boardSize=Math.min(W*.94,H*.82);
  boardLeft=(W-boardSize)/2;boardTop=(H-boardSize)/2;
  grain=Array.from({length:Math.floor(W*H/780)},()=>({x:Math.random()*W,y:Math.random()*H,r:.3+Math.random()*.8,a:.025+Math.random()*.065}));
  for(const n of nodes){const p=mapBoardPoint(n.nx,n.ny);n.x=p.x;n.y=p.y;}
@@ -273,9 +273,9 @@ function drawPeg(n){
  ctx.fillStyle=head;ctx.strokeStyle='#684A32';ctx.lineWidth=1;ctx.beginPath();ctx.ellipse(0,-3,10,7.5,0,0,TAU);ctx.fill();ctx.stroke();
  ctx.strokeStyle='rgba(255,246,224,.8)';ctx.beginPath();ctx.arc(-1,-4,6,-.2,2.6);ctx.stroke();
  const target=nodes[n.targetNodeId];if(target){
-  const angle=Math.atan2(target.y-n.y,target.x-n.x);ctx.save();ctx.rotate(angle);ctx.translate(20,0);
-  ctx.fillStyle='#F07832';ctx.strokeStyle='#fff';ctx.lineWidth=2.6;ctx.lineJoin='round';
-  ctx.beginPath();ctx.moveTo(13,0);ctx.lineTo(-6,-9);ctx.lineTo(-6,9);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
+  const angle=Math.atan2(target.y-n.y,target.x-n.x);ctx.save();ctx.rotate(angle);ctx.translate(17,0);
+  ctx.fillStyle='#F07832';ctx.strokeStyle='#fff';ctx.lineWidth=2.2;ctx.lineJoin='round';
+  ctx.beginPath();ctx.moveTo(10,0);ctx.lineTo(-5,-7);ctx.lineTo(-5,7);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
  }
  if(n.pulse>0){ctx.strokeStyle='rgba(240,120,50,'+Math.min(.8,n.pulse)+')';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,-3,15+n.pulse*7,0,TAU);ctx.stroke();}
  ctx.restore();
