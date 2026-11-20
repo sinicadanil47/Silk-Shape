@@ -120,8 +120,9 @@ function makeGraph(){
  for(const step of tour)if(nodes[step.from].targetNodeId===null)nodes[step.from].targetNodeId=step.to;
  // Deliberately misleading first choices at selected branch nodes; the Euler route remains available by rotating these arrows.
  const decoys={
-  2:[[4,3],[5,6]],
-  3:[[1,2],[5,4]]
+  1:[[1,3],[5,7]], // Donut: tempting inner braces instead of continuing the ring
+  2:[[6,1],[8,1]], // Crown: entering the lower cross-brace too early
+  3:[[1,2],[5,4]]  // Crystal: misleading branch choices
  };
  for(const [nodeId,wrongNeighbor] of (decoys[levelIndex]||[])){
   const node=nodes[nodeId];
