@@ -24,93 +24,43 @@ const TEMPLATES=[
  {name:'ПЕТЛЯ С УШКАМИ',p:[[.2,.4],[.25,.22],[.4,.3],[.5,.48],[.6,.3],[.75,.22],[.8,.4],[.72,.72],[.5,.84],[.28,.72]]}
 ];
 let levelIndex=1,LEVELS=[];
-function seededRandom(seed){
- let s=seed>>>0;
- return ()=>{s+=0x6D2B79F5;let t=s;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return ((t^(t>>>14))>>>0)/4294967296;};
-}
+function seededRandom(seed){let s=(seed>>>0)||0x9E3779B9;return ()=>{s+=0x6D2B79F5;let t=s;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return ((t^(t>>>14))>>>0)/4294967296;};}
 function sampleClosedPath(path,count){
- const lengths=[],total=0;
- let sum=0;
- for(let i=0;i<path.length;i++){const p=path[i],q=path[(i+1)%path.length],len=Math.hypot(q[0]-p[0],q[1]-p[1]);lengths.push(len);sum+=len;}
- const points=[];
- for(let k=0;k<count;k++){
-  let d=sum*k/count,seg=0;
-  while(seg<lengths.length-1&&d>lengths[seg]){d-=lengths[seg];seg++;}
-  const p=path[seg],q=path[(seg+1)%path.length],t=d/(lengths[seg]||1);
-  points.push([p[0]+(q[0]-p[0])*t,p[1]+(q[1]-p[1])*t]);
- }
- return points;
+ const lengths=[];let perimeter=0;
+ for(let i=0;i<path.length;i++){const p=path[i],q=path[(i+1)%path.length],len=Math.hypot(q[0]-p[0],q[1]-p[1]);lengths.push(len);perimeter+=len;}
+ const points=[];for(let k=0;k<count;k++){let d=perimeter*k/count,seg=0;while(seg<lengths.length-1&&d>lengths[seg]){d-=lengths[seg];seg++;}const p=path[seg],q=path[(seg+1)%path.length],t=d/(lengths[seg]||1);points.push([p[0]+(q[0]-p[0])*t,p[1]+(q[1]-p[1])*t]);}return points;
 }
 function eulerRoute(points,links,start=0){
- const adj=points.map(()=>[]);
- links.forEach(([a,b],id)=>{adj[a].push({to:b,id});adj[b].push({to:a,id});});
- const seen=new Set(),stack=[{v:start,edge:null}],route=[];
- while(stack.length){
-  const top=stack[stack.length-1],step=adj[top.v].find(x=>!seen.has(x.id));
-  if(step){seen.add(step.id);stack.push({v:step.to,edge:{from:top.v,to:step.to,id:step.id}});}
-  else{const item=stack.pop();if(item.edge)route.push(item.edge);}
- }
- return route.reverse();
+ const adj=points.map(()=>[]);links.forEach(([a,b],id)=>{adj[a].push({to:b,id});adj[b].push({to:a,id});});
+ const used=new Set(),stack=[{v:start,edge:null}],route=[];while(stack.length){const top=stack[stack.length-1],step=adj[top.v].find(x=>!used.has(x.id));if(step){used.add(step.id);stack.push({v:step.to,edge:{from:top.v,to:step.to,id:step.id}});}else{const item=stack.pop();if(item.edge)route.push(item.edge);}}return route.reverse();
 }
 function validateGenerated(points,links){
- if(points.length<6||points.length>14||links.length<points.length)return false;
- const degree=points.map(()=>0),adj=points.map(()=>[]);
- const keys=new Set();
- for(const [a,b] of links){
-  if(a===b||a<0||b<0||a>=points.length||b>=points.length)return false;
-  const key=a<b?a+':'+b:b+':'+a;if(keys.has(key))return false;keys.add(key);
-  degree[a]++;degree[b]++;adj[a].push(b);adj[b].push(a);
- }
- if(degree.some(d=>d%2!==0)||degree.filter(d=>d>=4).length<2)return false;
- const reached=new Set([0]),todo=[0];
- while(todo.length){for(const n of adj[todo.pop()])if(!reached.has(n)){reached.add(n);todo.push(n);}}
- if(reached.size!==points.length)return false;
- return eulerRoute(points,links).length===links.length;
+ const n=points.length;if(n<6||n>14||links.length<n)return false;
+ const degree=Array(n).fill(0),adj=Array.from({length:n},()=>[]),keys=new Set();
+ for(const [a,b] of links){if(!Number.isInteger(a)||!Number.isInteger(b)||a===b||a<0||b<0||a>=n||b>=n)return false;const key=a<b?a+':'+b:b+':'+a;if(keys.has(key))return false;keys.add(key);degree[a]++;degree[b]++;adj[a].push(b);adj[b].push(a);}
+ if(degree.some(d=>d%2)||degree.filter(d=>d>=4).length<2)return false;
+ const reached=new Set([0]),todo=[0];while(todo.length){const v=todo.pop();for(const w of adj[v])if(!reached.has(w)){reached.add(w);todo.push(w);}}
+ if(reached.size!==n)return false;const route=eulerRoute(points,links);return route.length===links.length&&new Set(route.map(x=>x.id)).size===links.length;
 }
 function generateLevel(levelNumber){
- const number=Math.max(1,Math.floor(Number(levelNumber)||1)),rng=seededRandom(number*2654435761);
- const template=TEMPLATES[Math.floor(rng()*TEMPLATES.length)];
- const count=number<=20?7+Math.floor((number-1)/7):Math.min(14,10+Math.floor(Math.min(1,(number-21)/240)*4));
- const difficulty=Math.min(4,1+Math.floor(number/35));
- for(let attempt=0;attempt<48;attempt++){
-  const path=template.p.map(p=>p.slice());
-  const mirror=rng()<.5,rotation=(rng()-.5)*.22,scale=.88+rng()*.18,cs=Math.cos(rotation),sn=Math.sin(rotation);
-  const points=sampleClosedPath(path,count).map(([x,y])=>{
-   let dx=(x-.5)*scale*(mirror?-1:1),dy=(y-.5)*scale;
-   const j=(rng()-.5)*.018;
-   const rx=dx*cs-dy*sn+j,ry=dx*sn+dy*cs-j;
-   return [Math.max(.12,Math.min(.88,.5+rx)),Math.max(.12,Math.min(.88,.5+ry))];
-  });
-  const links=points.map((_,i)=>[i,(i+1)%count]);
-  const occupied=new Set(links.map(([a,b])=>a<b?a+':'+b:b+':'+a));
-  const candidates=[];
-  for(let i=0;i<count;i++)for(let j=i+1;j<count;j++)for(let k=j+1;k<count;k++){
-   const pairs=[[i,j],[j,k],[k,i]];
-   if(pairs.every(([a,b])=>!occupied.has(a<b?a+':'+b:b+':a')))candidates.push([i,j,k]);
-  }
+ const number=Math.max(1,Math.floor(Number(levelNumber)||1)),seed=Math.imul(number,0x9E3779B1)^Math.imul(number>>>3,0x85EBCA6B),rng=seededRandom(seed);
+ const template=TEMPLATES[(number-1)%TEMPLATES.length];
+ const count=number<=20?6+Math.floor((number-1)*4/19):Math.min(14,10+Math.floor(Math.min(1,(number-21)/420)*4));
+ const targetCycles=number<=20?1+Math.floor((number-1)/10):Math.min(8,2+Math.floor(Math.min(1,(number-21)/979)*6));
+ for(let attempt=0;attempt<96;attempt++){
+  const raw=sampleClosedPath(template.p,count),mirror=rng()<.5,rotation=(rng()-.5)*.48,scale=.91+rng()*.13,cs=Math.cos(rotation),sn=Math.sin(rotation),phase=rng()*Math.PI*2,warp=.006+rng()*.022;
+  const points=raw.map(([x,y],i)=>{const dx=(x-.5)*scale*(mirror?-1:1),dy=(y-.5)*scale,radial=Math.sin(i*2.399+phase)*warp;return [Math.max(.10,Math.min(.90,.5+dx*cs-dy*sn+radial)),Math.max(.10,Math.min(.90,.5+dx*sn+dy*cs+Math.cos(i*1.71+phase)*warp))];});
+  const n=points.length,links=points.map((_,i)=>[i,(i+1)%n]),occupied=new Set(links.map(([a,b])=>a<b?a+':'+b:b+':a')),candidates=[];
+  for(let size=3;size<=Math.min(5,n);size++){const combos=[];const choose=(from,arr)=>{if(arr.length===size){combos.push(arr.slice());return;}for(let v=from;v<n;v++)choose(v+1,arr.concat(v));};choose(0,[]);for(const combo of combos){const order=combo.slice();if(rng()<.5)order.reverse();const loop=order.map((v,i)=>[v,order[(i+1)%order.length]]);if(loop.every(([a,b])=>!occupied.has(a<b?a+':'+b:b+':a')))candidates.push(loop);}}
   for(let i=candidates.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[candidates[i],candidates[j]]=[candidates[j],candidates[i]];}
-  const usedVertices=new Set();let added=0;
-  for(const tri of candidates){
-   if(tri.some(v=>usedVertices.has(v)))continue;
-   const pairs=[[tri[0],tri[1]],[tri[1],tri[2]],[tri[2],tri[0]]];
-   if(pairs.some(([a,b])=>occupied.has(a<b?a+':'+b:b+':a')))continue;
-   for(const [a,b] of pairs){links.push([a,b]);occupied.add(a<b?a+':'+b:b+':a');}
-   tri.forEach(v=>usedVertices.add(v));added++;
-   if(added>=difficulty)break;
-  }
-  if(validateGenerated(points,links)){
-   const route=eulerRoute(points,links,0);
-   return {name:template.name,title:template.name,points,links,start:0,solution:route.length,levelNumber:number};
-  }
+  let added=0;for(const loop of candidates){if(loop.some(([a,b])=>occupied.has(a<b?a+':'+b:b+':a')))continue;for(const [a,b] of loop){links.push([a,b]);occupied.add(a<b?a+':'+b:b+':a');}added++;if(added>=targetCycles)break;}
+  if(added>=targetCycles&&validateGenerated(points,links)){const degree=Array(n).fill(2);for(const [a,b] of links){degree[a]++;degree[b]++;}return {name:template.name,title:template.name,points,links,start:0,solution:eulerRoute(points,links).length,levelNumber:number,complexity:{nodes:n,edges:links.length,branches:degree.filter(d=>d>=4).length}};}
  }
- // Guaranteed bounded fallback: a simple polygon plus one interior triangle.
- const points=sampleClosedPath(TEMPLATES[(number-1)%TEMPLATES.length].p,Math.max(7,Math.min(14,count)));
- const links=points.map((_,i)=>[i,(i+1)%points.length]);
- const tri=[0,2,4];for(const [a,b] of [[0,2],[2,4],[4,0]])links.push([a,b]);
- if(!validateGenerated(points,links))throw new Error('Не удалось построить проходимый уровень '+number);
- return {name:TEMPLATES[(number-1)%TEMPLATES.length].name,title:TEMPLATES[(number-1)%TEMPLATES.length].name,points,links,start:0,solution:eulerRoute(points,links).length,levelNumber:number};
+ const points=sampleClosedPath(template.p,count),n=points.length,links=points.map((_,i)=>[i,(i+1)%n]),occupied=new Set(links.map(([a,b])=>a<b?a+':'+b:b+':a'));let added=0;
+ for(let offset=0;offset<n&&added<2;offset++){const tri=[offset%n,(offset+2)%n,(offset+4)%n],loop=[[tri[0],tri[1]],[tri[1],tri[2]],[tri[2],tri[0]]];if(new Set(tri).size<3||loop.some(([a,b])=>occupied.has(a<b?a+':'+b:b+':a')))continue;for(const [a,b] of loop){links.push([a,b]);occupied.add(a<b?a+':'+b:b+':a');}added++;}
+ if(!validateGenerated(points,links))throw new Error('Не удалось построить уровень '+number);
+ const degree=Array(n).fill(2);for(const [a,b] of links){degree[a]++;degree[b]++;}return {name:template.name,title:template.name,points,links,start:0,solution:eulerRoute(points,links).length,levelNumber:number,complexity:{nodes:n,edges:links.length,branches:degree.filter(d=>d>=4).length}};
 }
-
 let rabbitPoints=[],rabbitLinks=[];
 let boardSize=0,boardLeft=0,boardTop=0;
 function mapBoardPoint(nx,ny){
