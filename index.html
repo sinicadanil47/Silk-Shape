@@ -65,6 +65,7 @@ function buildLevel(){
   const route=path.p.map(v=>{const k=key(v);if(!map.has(k)){const q=xy(v);map.set(k,{id:pegs.length,x:q.x,y:q.y,neighbors:[],pulse:0});pegs.push(map.get(k));}return map.get(k);});
   const routeEdges=[];
   for(let i=0;i<route.length-1;i++){const a=route[i],b=route[i+1];let e=edges.find(z=>(z.a===a&&z.b===b)||(z.a===b&&z.b===a));if(!e){e={a,b,color:path.c,drawn:false,failed:false};edges.push(e);a.neighbors.push({node:b,edge:e});b.neighbors.push({node:a,edge:e});}routeEdges.push(e);}
+  {const a=route[route.length-1],b=route[0];let e=edges.find(z=>(z.a===a&&z.b===b)||(z.a===b&&z.b===a));if(!e){e={a,b,color:path.c,drawn:false,failed:false};edges.push(e);a.neighbors.push({node:b,edge:e});b.neighbors.push({node:a,edge:e});}routeEdges.push(e);}
   route.forEach((n,i)=>{const next=route[(i+1)%route.length];const ix=n.neighbors.findIndex(v=>v.node===next);if(ix>=0)n.arrow=ix;});
   spiders.push({color:path.c,route,routeEdges,routeIndex:0,progress:0,x:route[0].x,y:route[0].y,from:route[0],to:route[1],t:0,angle:Math.atan2(route[1].y-route[0].y,route[1].x-route[0].x),done:false,broken:false,fall:0});
  });
@@ -93,9 +94,8 @@ function update(dt){
  if(scene==='failed'){const s=spiders.find(v=>v.broken);if(s){s.y+=220*dt;s.fall+=dt;}return;}
  if(scene!=='playing')return;
  for(const s of spiders){if(s.done)continue;
-  const current=s.route[s.routeIndex],choice=current.neighbors[current.arrow];
-  if(!choice){continue;}
-  s.from=current;s.to=choice.node;
+  if(s.t===0){const current=s.route[s.routeIndex],choice=current.neighbors[current.arrow];if(!choice)continue;s.from=current;s.to=choice.node;s.edgeChoice=choice;}
+  const choice=s.edgeChoice;
   const angle=Math.atan2(s.to.y-s.from.y,s.to.x-s.from.x);let diff=((angle-s.angle+Math.PI*3)%(TAU))-Math.PI;s.angle+=diff*Math.min(1,dt*12);
   s.t+=levels[level].speed*dt/Math.max(1,Math.hypot(s.to.x-s.from.x,s.to.y-s.from.y));
   s.x=s.from.x+(s.to.x-s.from.x)*Math.min(1,s.t);s.y=s.from.y+(s.to.y-s.from.y)*Math.min(1,s.t);
@@ -105,7 +105,7 @@ function update(dt){
    if(nextIndex===((s.routeIndex+1)%s.route.length)){s.progress++;choice.edge.drawn=true;}
    else if(nextIndex===prev){s.progress=Math.max(0,s.progress-1);}
    s.routeIndex=nextIndex;s.x=s.to.x;s.y=s.to.y;s.t=0;pluck(s.color);updateProgress();
-   if(s.progress>=s.routeEdges.length){s.done=true;s.x=s.route[s.route.length-1].x;s.y=s.route[s.route.length-1].y;}
+   if(s.progress>=s.routeEdges.length){s.done=true;s.x=s.to.x;s.y=s.to.y;}
   }
  }
  if(spiders.every(s=>s.done)){progressBar.style.width='100%';progressText.textContent='100%';win();}
