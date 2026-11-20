@@ -68,7 +68,7 @@ function generateLevel(levelNumber){
    if(!accepted)break;
   }
   if(added===targetCycles&&validateGenerated(points,links)){
-   const degree=Array(n).fill(2);for(const [a,b] of links){degree[a]++;degree[b]++;}
+   const degree=Array(n).fill(0);for(const [a,b] of links){degree[a]++;degree[b]++;}
    return {name:template.name,title:template.name,points,links,start:0,solution:eulerRoute(points,links).length,levelNumber:number,complexity:{nodes:n,edges:links.length,branches:degree.filter(d=>d>=4).length}};
   }
  }
@@ -84,7 +84,7 @@ function generateLevel(levelNumber){
   added++;
  }
  if(!validateGenerated(points,links))throw new Error('Не удалось построить уровень '+number);
- const degree=Array(n).fill(2);for(const [x,y] of links){degree[x]++;degree[y]++;}
+ const degree=Array(n).fill(0);for(const [x,y] of links){degree[x]++;degree[y]++;}
  return {name:template.name,title:template.name,points,links,start:0,solution:eulerRoute(points,links).length,levelNumber:number,complexity:{nodes:n,edges:links.length,branches:degree.filter(d=>d>=4).length}};
 
 }
