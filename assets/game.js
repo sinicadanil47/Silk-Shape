@@ -35,14 +35,18 @@ const rabbitLinks=[
  [2,6],[4,6],
  [6,8],[8,11],[11,10],[10,9],[9,7],[7,6]
 ];
-function resize(){
+function resizeCanvas(){
  const r=game.getBoundingClientRect();W=r.width;H=r.height;D=Math.min(window.devicePixelRatio||1,2);
  canvas.width=Math.round(W*D);canvas.height=Math.round(H*D);ctx.setTransform(D,0,0,D,0,0);
  grain=Array.from({length:Math.floor(W*H/780)},()=>({x:Math.random()*W,y:Math.random()*H,r:.3+Math.random()*.8,a:.025+Math.random()*.065}));
  for(const n of nodes){n.x=n.nx*W;n.y=n.ny*H;}
  if(bug){bug.x=bug.nx*W;bug.y=bug.ny*H;}
 }
-new ResizeObserver(resize).observe(game);
+function installResizeHandling(){
+ window.addEventListener('resize',resizeCanvas,{passive:true});
+ window.addEventListener('orientationchange',()=>setTimeout(resizeCanvas,80),{passive:true});
+ if('ResizeObserver' in window)new ResizeObserver(resizeCanvas).observe(game);
+}
 function makeGraph(){
  nodes=rabbitPoints.map((p,id)=>({id,nx:p[0],ny:p[1],x:p[0]*W,y:p[1]*H,targetNodeId:null,neighbors:[],pulse:0}));
  edges=rabbitLinks.map(([ai,bi],id)=>{
@@ -107,7 +111,6 @@ canvas.addEventListener('pointerdown',e=>{
 },{passive:false});
 forwardButton.addEventListener('click',startMove);
 rotateButton.addEventListener('click',()=>{if(state===STATE.PLAYING)rotateArrow(bug.currentNode);});
-document.getElementById('restart').addEventListener('click',restart);
 function restart(){
  state=STATE.PLAYING;loseTimer=0;winTimer=0;particles=[];screen.style.display='none';
  makeGraph();setProgress();refreshControls();
@@ -211,9 +214,30 @@ function draw(){
  drawBackground();drawField();drawParticles();
 }
 function frame(ts){const dt=Math.min(.04,(ts-last)/1000||0);last=ts;update(dt);draw();requestAnimationFrame(frame);}
+let initialized=false,rafStarted=false;
 function init(){
+ if(initialized)return;
+ initialized=true;
  levelLabel.textContent='УРОВЕНЬ 1 · ЗАЯЦ';
- makeGraph();resize();setProgress();refreshControls();requestAnimationFrame(frame);
+ makeGraph();
+ resizeCanvas();
+ const firstTarget=nodes[bug.currentNode.targetNodeId];
+ if(firstTarget)bug.angle=Math.atan2(firstTarget.y-bug.y,firstTarget.x-bug.x);
+ setProgress();
+ refreshControls();
+ if(!rafStarted){rafStarted=true;requestAnimationFrame(frame);}
 }
-init();
+function boot(){
+ installResizeHandling();
+ init();
+}
+if(document.readyState==='loading'){
+ document.addEventListener('DOMContentLoaded',boot,{once:true});
+}else{
+ boot();
+}
+window.addEventListener('load',()=>{
+ if(!initialized)init();
+ resizeCanvas();
+},{once:true});
 })();
