@@ -47,9 +47,11 @@ function generateLevel(levelNumber){
  const template=TEMPLATES[(number-1)%TEMPLATES.length];
  const count=number<=20?6+Math.floor((number-1)*4/19):Math.min(14,10+Math.floor(Math.min(1,(number-21)/420)*4));
  const targetCycles=number<=20?1+Math.floor((number-1)/10):Math.min(8,2+Math.floor(Math.min(1,(number-21)/979)*6));
+ let fallbackPoints=null;
  for(let attempt=0;attempt<48;attempt++){
   const raw=sampleClosedPath(template.p,count),mirror=rng()<.5,rotation=(rng()-.5)*.48,scale=.91+rng()*.13,cs=Math.cos(rotation),sn=Math.sin(rotation),phase=rng()*Math.PI*2,warp=.006+rng()*.022;
   const points=raw.map(([x,y],i)=>{const dx=(x-.5)*scale*(mirror?-1:1),dy=(y-.5)*scale,radial=Math.sin(i*2.399+phase)*warp;return [Math.max(.10,Math.min(.90,.5+dx*cs-dy*sn+radial)),Math.max(.10,Math.min(.90,.5+dx*sn+dy*cs+Math.cos(i*1.71+phase)*warp))];});
+  fallbackPoints=points;
   const n=points.length,links=points.map((_,i)=>[i,(i+1)%n]),occupied=new Set(links.map(([a,b])=>a<b?a+':'+b:b+':a'));
   let added=0;
   for(let cycle=0;cycle<targetCycles;cycle++){
@@ -71,7 +73,7 @@ function generateLevel(levelNumber){
   }
  }
  // Safe deterministic fallback: a perimeter and two distinct chord triangles.
- const points=sampleClosedPath(template.p,count),n=points.length,links=points.map((_,i)=>[i,(i+1)%n]),occupied=new Set(links.map(([a,b])=>a<b?a+':'+b:b+':a'));let added=0;
+ const points=fallbackPoints||sampleClosedPath(template.p,count),n=points.length,links=points.map((_,i)=>[i,(i+1)%n]),occupied=new Set(links.map(([a,b])=>a<b?a+':'+b:b+':a'));let added=0;
  for(let offset=0;offset<n&&added<2;offset++){
   const tri=[offset%n,(offset+2)%n,(offset+4)%n],loop=[[tri[0],tri[1]],[tri[1],tri[2]],[tri[2],tri[0]]];
   if(new Set(tri).size<3||loop.some(([a,b])=>occupied.has(a<b?a+':'+b:b+':a')))continue;
