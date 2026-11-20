@@ -158,9 +158,9 @@ function update(dt){
  }
  if(state===STATE.LOSE){
   loseTimer+=dt;bug.hang+=dt;bug.vy+=125*dt;bug.y=Math.min(H*.88,bug.y+bug.vy*dt);bug.x+=Math.sin(bug.hang*3.1)*12*dt;bug.swing=Math.sin(bug.hang*3.3)*.32;
-  if(loseTimer>0.85&&screen.style.display==='none')showEnd(false);
+  if(loseTimer>0.85&&!screen.classList.contains('modal'))showEnd(false);
  }
- if(state===STATE.WIN){winTimer+=dt;if(winTimer>1.5&&screen.style.display==='none')showEnd(true);}
+ if(state===STATE.WIN){winTimer+=dt;if(winTimer>1.5&&!screen.classList.contains('modal'))showEnd(true);}
  for(const p of particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=85*dt;p.life-=dt;}
  particles=particles.filter(p=>p.life>0);
 }
