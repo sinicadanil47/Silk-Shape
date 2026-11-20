@@ -32,12 +32,45 @@ const LEVELS=[
   links:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,0],[0,4]]
  },
  {
-  name:'ЗВЕЗДА',title:'Звезда',start:1,
-  points:Array.from({length:10},(_,i)=>{
-   const a=-Math.PI/2+i*Math.PI/5,r=i%2===0?.245:.115;
-   return [.50+r*Math.cos(a),.46+r*Math.sin(a)];
-  }),
-  links:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8],[8,9],[9,0],[1,7]]
+  name:'КОРОНА',title:'Корона',start:0,
+  points:[
+   [.20,.68], // 0 left base
+   [.28,.46], // 1 left wall
+   [.36,.32], // 2 left tooth valley
+   [.31,.16], // 3 left tooth tip
+   [.50,.34], // 4 center notch
+   [.69,.16], // 5 right tooth tip
+   [.64,.32], // 6 right tooth valley
+   [.72,.46], // 7 right wall
+   [.80,.68], // 8 right base
+   [.50,.68]  // 9 middle base
+  ],
+  links:[
+   [0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8],[8,9],[9,0],
+   [0,4],[4,7],[2,8]
+  ]
+ },
+ {
+  name:'КРИСТАЛЛ',title:'Кристалл',start:2,
+  points:[
+   [.50,.13], // 0 top
+   [.68,.27], // 1 upper right
+   [.82,.46], // 2 right
+   [.68,.65], // 3 lower right
+   [.50,.79], // 4 bottom
+   [.32,.65], // 5 lower left
+   [.18,.46], // 6 left
+   [.32,.27], // 7 upper left
+   [.50,.34], // 8 inner upper
+   [.64,.46], // 9 inner right
+   [.50,.58], // 10 inner lower
+   [.36,.46]  // 11 inner left
+  ],
+  links:[
+   [0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,0],
+   [0,8],[8,9],[9,10],[10,11],[11,4],[9,2],[10,6],[0,4],
+   [9,11],[10,8],[8,11]
+  ]
  }
 ];
 let levelIndex=0;
@@ -71,6 +104,16 @@ function makeGraph(){
  if(odd.length===2&&!odd.includes(startId))throw new Error('Неверная стартовая точка эйлерова маршрута.');
  if(odd.length===0&&endId!==startId)throw new Error('Некорректный эйлеров цикл.');
  for(const step of tour)if(nodes[step.from].targetNodeId===null)nodes[step.from].targetNodeId=step.to;
+ // Deliberately misleading first choices at selected branch nodes; the Euler route remains available by rotating these arrows.
+ const decoys={
+  2:[[4,3],[5,6]],
+  3:[[1,2],[5,4]]
+ };
+ for(const [nodeId,wrongNeighbor] of (decoys[levelIndex]||[])){
+  const node=nodes[nodeId];
+  if(node&&node.neighbors.some(v=>v.node.id===wrongNeighbor)&&node.targetNodeId!==wrongNeighbor)
+   node.targetNodeId=wrongNeighbor;
+ }
  for(const n of nodes)if(n.targetNodeId===null)n.targetNodeId=n.neighbors[0]?.node.id??null;
  const start=nodes[startId];
  bug={x:start.x,y:start.y,nx:start.nx,ny:start.ny,currentNode:start,from:null,to:null,edge:null,t:0,speed:205,angle:Math.atan2(nodes[start.targetNodeId].y-start.y,nodes[start.targetNodeId].x-start.x),progress:0,broken:false,swing:0,hang:0,vy:0};
