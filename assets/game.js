@@ -53,7 +53,7 @@ function generateLevel(levelNumber){
  const key=(a,b)=>a<b?a+':'+b:b+':'+a,used=new Set(links.map(([a,b])=>key(a,b)));
  const addLoop=loop=>{if(loop.some(([a,b])=>used.has(key(a,b))))return false;for(const [a,b] of loop){links.push([a,b]);used.add(key(a,b));}return true;};
  // One guaranteed inner triangle creates three decision pegs while preserving even degrees.
- if(!addLoop([[0,2],[2,4],[4,0]]))throw new Error('Invalid base silhouette '+number);
+ if(number>5&&!addLoop([[0,2],[2,4],[4,0]]))throw new Error('Invalid base silhouette '+number);
  const stage=number<=5?0:number<=10?1:number<=15?1:number<=20?2:number<=25?2:3;
  const options=[];
  for(let size=3;size<=Math.min(5,n);size++){
@@ -64,7 +64,7 @@ function generateLevel(levelNumber){
  let added=0;for(const loop of options){if(stage===0)break;if(addLoop(loop)&&++added>=stage)break;}
  if(!validateGenerated(points,links)){
   // Remove optional loops and retain the known-good perimeter + triangle graph.
-  links.splice(n);used.clear();for(let i=0;i<n;i++)used.add(key(i,(i+1)%n));addLoop([[0,2],[2,4],[4,0]]);
+  links.splice(n);used.clear();for(let i=0;i<n;i++)used.add(key(i,(i+1)%n));if(number>5)addLoop([[0,2],[2,4],[4,0]]);
  }
  if(!validateGenerated(points,links))throw new Error('Не удалось построить честный уровень '+number);
  const degree=Array(n).fill(0);for(const [a,b] of links){degree[a]++;degree[b]++;}
