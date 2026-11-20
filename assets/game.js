@@ -111,7 +111,7 @@ function generateLevel(levelNumber){
  return {name:TEMPLATES[(number-1)%TEMPLATES.length].name,title:TEMPLATES[(number-1)%TEMPLATES.length].name,points,links,start:0,solution:eulerRoute(points,links).length,levelNumber:number};
 }
 
-let rabbitPoints=LEVELS[0].points,rabbitLinks=LEVELS[0].links;
+let rabbitPoints=[],rabbitLinks=[];
 let boardSize=0,boardLeft=0,boardTop=0;
 function mapBoardPoint(nx,ny){
  return {x:boardLeft+nx*boardSize,y:boardTop+ny*boardSize};
@@ -244,7 +244,7 @@ function showEnd(won){
  screen.className='modal';screen.style.display='flex';
  const title=won?(level.title+' сплетён!'):'Засада! Нить уже пройдена';
  const subtitle=won?'Все линии пройдены ровно по одному разу. Отличная работа!':'Жучок повторно прошёл по уже использованной нити и запутался.';
- screen.innerHTML='<div class="card"><div class="eyebrow">SILK &amp; SHAPE · УРОВЕНЬ '+(levelIndex+1)+'</div><h1>'+title+'</h1><p class="subtitle">'+subtitle+'</p>'+(won&&hasNext?'<button class="primary" id="nextLevel">СЛЕДУЮЩИЙ УРОВЕНЬ</button>':'')+'<button class="primary" id="again">ЗАНОВО</button></div>';
+ screen.innerHTML='<div class="card"><div class="eyebrow">SILK &amp; SHAPE · УРОВЕНЬ '+levelIndex+'</div><h1>'+title+'</h1><p class="subtitle">'+subtitle+'</p>'+(won&&hasNext?'<button class="primary" id="nextLevel">СЛЕДУЮЩИЙ УРОВЕНЬ</button>':'')+'<button class="primary" id="again">ЗАНОВО</button></div>';
  const next=document.getElementById('nextLevel');if(next)next.addEventListener('click',nextLevel);
  document.getElementById('again').addEventListener('click',restart);
 }
