@@ -117,19 +117,16 @@ function makeGraph(){
  const endId=tour.length?tour[tour.length-1].to:startId;
  if(odd.length===2&&!odd.includes(startId))throw new Error('Неверная стартовая точка эйлерова маршрута.');
  if(odd.length===0&&endId!==startId)throw new Error('Некорректный эйлеров цикл.');
- for(const step of tour)if(nodes[step.from].targetNodeId===null)nodes[step.from].targetNodeId=step.to;
- // Deliberately misleading first choices at selected branch nodes; the Euler route remains available by rotating these arrows.
- const decoys={
-  1:[[1,3],[5,7]], // Donut: tempting inner braces instead of continuing the ring
-  2:[[6,1],[8,1]], // Crown: entering the lower cross-brace too early
-  3:[[1,2],[5,4]]  // Crystal: misleading branch choices
- };
- for(const [nodeId,wrongNeighbor] of (decoys[levelIndex]||[])){
-  const node=nodes[nodeId];
-  if(node&&node.neighbors.some(v=>v.node.id===wrongNeighbor)&&node.targetNodeId!==wrongNeighbor)
-   node.targetNodeId=wrongNeighbor;
+ // Randomize every peg's initial arrow independently on each level start/restart.
+ // The player must inspect the graph and rotate arrows to construct a valid one-pass route.
+ for(const n of nodes){
+  if(n.neighbors.length){
+   const choice=Math.floor(Math.random()*n.neighbors.length);
+   n.targetNodeId=n.neighbors[choice].node.id;
+  }else{
+   n.targetNodeId=null;
+  }
  }
- for(const n of nodes)if(n.targetNodeId===null)n.targetNodeId=n.neighbors[0]?.node.id??null;
  const start=nodes[startId];
  bug={x:start.x,y:start.y,nx:start.nx,ny:start.ny,currentNode:start,from:null,to:null,edge:null,t:0,speed:205,angle:Math.atan2(nodes[start.targetNodeId].y-start.y,nodes[start.targetNodeId].x-start.x),progress:0,broken:false,swing:0,hang:0,vy:0};
 }
