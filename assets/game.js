@@ -14,18 +14,18 @@ const PAPER='#F4EFE6',INK='#5C4D3C',THREAD='#C85A32';
 const STATE={PLAYING:'PLAYING',MOVING:'MOVING',LOSE:'LOSE',WIN:'WIN'};
 let state=STATE.PLAYING,W=0,H=0,D=1,last=0,clock=0,bug=null,nodes=[],edges=[],particles=[],grain=[],loseTimer=0,winTimer=0;
 const rabbitPoints=[
- [.38,.14], // 0 left ear tip
- [.34,.34], // 1 left ear base outer
- [.43,.34], // 2 left ear base inner
- [.62,.14], // 3 right ear tip
- [.57,.34], // 4 right ear base inner
- [.66,.34], // 5 right ear base outer
- [.50,.38], // 6 forehead / nose bridge
- [.28,.52], // 7 left cheek
- [.72,.52], // 8 right cheek
- [.36,.72], // 9 lower left
- [.50,.78], // 10 chin
- [.64,.72]  // 11 lower right
+ [.35,.18], // 0 left ear tip
+ [.28,.36], // 1 left ear base outer
+ [.42,.36], // 2 left ear base inner
+ [.65,.18], // 3 right ear tip
+ [.58,.36], // 4 right ear base inner
+ [.72,.36], // 5 right ear base outer
+ [.50,.39], // 6 forehead / nose bridge
+ [.22,.50], // 7 left cheek
+ [.78,.50], // 8 right cheek
+ [.31,.65], // 9 lower left
+ [.50,.70], // 10 chin
+ [.69,.65]  // 11 lower right
 ];
 // Two closed ear contours, two short ear-to-forehead joins, and one rounded face contour.
 // Exactly two odd-degree vertices (2 and 4): an Euler trail exists from 2 to 4.
