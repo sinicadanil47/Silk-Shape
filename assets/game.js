@@ -23,12 +23,14 @@ let soundOn=localStorage.getItem('silkShapeSound')!=='off';
 let savedLevel=Math.max(0,Math.min(11,parseInt(localStorage.getItem('silkShapeLevel')||'0',10)||0));
 let pegs=[],edges=[],spiders=[],particles=[],grain=[],levelArt=null,reveal=0,winElapsed=0,fireworksStarted=false,loadToken=0,loseElapsed=0;
 const hiddenSvg=document.createElementNS(NS,'svg');hiddenSvg.setAttribute('xmlns',NS);hiddenSvg.style.cssText='position:absolute;width:1px;height:1px;left:-10000px;top:-10000px;overflow:visible';document.body.appendChild(hiddenSvg);
+let paperScope=null,roughLayer=null,roughCache=null,roughCacheKey='',winMotion={reveal:0};
 let demo={bugs:[],pegs:[],edges:[],art:null,phase:'draw',hold:0,fade:0,reveal:0,ready:false,loading:false};
-function resize(){const r=game.getBoundingClientRect();W=r.width;H=r.height;D=Math.min(devicePixelRatio||1,2);canvas.width=Math.round(W*D);canvas.height=Math.round(H*D);ctx.setTransform(D,0,0,D,0,0);grain=Array.from({length:Math.floor(W*H/850)},()=>({x:Math.random()*W,y:Math.random()*H,a:Math.random()*.11+.025,r:Math.random()*.8+.25}));reflow();if(demo.ready){for(const p of demo.pegs){p.x=p.nx*W;p.y=p.ny*H;}const b=demo.bugs[0];if(b){b.x=b.nx*W;b.y=b.ny*H;}}}
+function resize(){const r=game.getBoundingClientRect();W=r.width;H=r.height;D=Math.min(devicePixelRatio||1,2);canvas.width=Math.round(W*D);canvas.height=Math.round(H*D);ctx.setTransform(D,0,0,D,0,0);grain=Array.from({length:Math.floor(W*H/850)},()=>({x:Math.random()*W,y:Math.random()*H,a:Math.random()*.11+.025,r:Math.random()*.8+.25}));roughCache=null;reflow();if(demo.ready){for(const p of demo.pegs){p.x=p.nx*W;p.y=p.ny*H;}const b=demo.bugs[0];if(b){b.x=b.nx*W;b.y=b.ny*H;}}}
 new ResizeObserver(resize).observe(game);
 function reflow(){for(const p of pegs){p.x=p.nx*W;p.y=p.ny*H;}for(const s of spiders){s.x=s.nx*W;s.y=s.ny*H;}if(levelArt)levelArt.rect=artRect(levelArt.vb);}
+function initDrawingLibraries(){if(window.paper&&!paperScope){paperScope=new paper.PaperScope();const c=document.createElement('canvas');c.width=c.height=8;paperScope.setup(c);}if(window.rough&&!roughLayer)roughLayer=window.rough;}
 function artRect(vb){const side=Math.min(W*.74,H*.52),scale=side/Math.max(vb.w,vb.h);return{x:(W-vb.w*scale)/2-vb.x*scale,y:(H-vb.h*scale)/2-vb.y*scale,w:vb.w*scale,h:vb.h*scale,scale};}
-function clearGame(){pegs=[];edges=[];spiders=[];particles=[];if(levelArt&&levelArt.url)URL.revokeObjectURL(levelArt.url);levelArt=null;reveal=0;winElapsed=0;fireworksStarted=false;loseElapsed=0;progressBar.style.width='0%';progressText.textContent='0%';}
+function clearGame(){if(window.anime)anime.remove(winMotion);pegs=[];edges=[];spiders=[];particles=[];if(levelArt&&levelArt.url)URL.revokeObjectURL(levelArt.url);levelArt=null;reveal=0;winElapsed=0;fireworksStarted=false;loseElapsed=0;progressBar.style.width='0%';progressText.textContent='0%';}
 function audioInit(){if(!soundOn)return;if(!audio){const A=window.AudioContext||window.webkitAudioContext;if(A)audio=new A();}if(audio&&audio.state==='suspended')audio.resume();}
 function tone(f,d,type='sine',v=.03,delay=0){if(!audio||!soundOn)return;const o=audio.createOscillator(),g=audio.createGain(),t=audio.currentTime+delay;o.type=type;o.frequency.setValueAtTime(f,t);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(v,t+.012);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g);g.connect(audio.destination);o.start(t);o.stop(t+d+.02);}
 function pluck(c){tone(410+c*47,.22,'triangle',.03);tone(660+c*31,.16,'sine',.014,.035);}
@@ -36,13 +38,27 @@ function chord(){[392,494,587,784,988].forEach((f,i)=>tone(f,.55,'triangle',.028
 function loadSvg(file){return fetch('./assets/levels/'+file).then(r=>{if(!r.ok)throw Error('SVG не найден: '+file);return r.text();}).then(text=>{const doc=new DOMParser().parseFromString(text,'image/svg+xml');if(doc.querySelector('parsererror'))throw Error('Некорректный SVG: '+file);const root=doc.documentElement,v=(root.getAttribute('viewBox')||'0 0 1024 1024').trim().split(/[ ,]+/).map(Number);const vb={x:v[0]||0,y:v[1]||0,w:v[2]||1024,h:v[3]||1024};const image=new Image();const url=URL.createObjectURL(new Blob([text],{type:'image/svg+xml'}));image.src=url;return new Promise((resolve,reject)=>{image.onload=()=>resolve({doc,vb,image,url,file});image.onerror=()=>{URL.revokeObjectURL(url);reject(Error('Не удалось отобразить '+file));};});});}
 function fillOf(el){let f=el.getAttribute('fill');if(!f||f==='inherit'){const st=el.getAttribute('style')||'';f=(st.match(/(?:^|;)\s*fill\s*:\s*([^;]+)/i)||[])[1];}return f&&f!=='none'?f:'#8B684E';}
 function sampleSvg(def,count=8,maxPaths=2){
- hiddenSvg.replaceChildren();hiddenSvg.setAttribute('viewBox',[def.vb.x,def.vb.y,def.vb.w,def.vb.h].join(' '));
- const candidates=[...def.doc.querySelectorAll('path')].map((source,index)=>{const node=document.importNode(source,true);hiddenSvg.appendChild(node);let len=0,box={width:0,height:0};try{len=node.getTotalLength();box=node.getBBox();}catch(e){}return{node,len,box,fill:fillOf(source),index,area:box.width*box.height};}).filter(x=>x.len>0&&x.area>def.vb.w*def.vb.h*.003&&x.len>35).sort((a,b)=>b.len-a.len);
- if(!candidates.length)throw Error('В SVG нет подходящих крупных контуров: '+def.file);
+ initDrawingLibraries();
+ if(!paperScope)throw Error('Paper.js не загрузился — проверьте CDN и подключение к сети.');
+ const imported=paperScope.project.importSVG(new XMLSerializer().serializeToString(def.doc.documentElement),{insert:false});
+ const paths=[];const walk=item=>{if(item instanceof paperScope.Path){if(item.closed||item.segments.length>2)paths.push(item);}else if(item.children)item.children.forEach(walk);};walk(imported);
+ const candidates=paths.map((path,index)=>{try{path.simplify(.85);}catch(e){}const b=path.bounds,len=path.length;return{path,index,len,area:Math.abs(b.width*b.height),fill:path.fillColor?.toCSS(true)||'#8B684E'};})
+  .filter(x=>x.len>35&&x.area>def.vb.w*def.vb.h*.003).sort((a,b)=>b.len-a.len);
+ if(!candidates.length)throw Error('Paper.js не нашёл крупных SVG-контуров: '+def.file);
  const selected=candidates.filter(x=>x.len>=candidates[0].len*.105).slice(0,maxPaths);
  const scale=Math.min(W*.72,H*.49)/Math.max(def.vb.w,def.vb.h),ox=(W-def.vb.w*scale)/2-def.vb.x*scale,oy=(H-def.vb.h*scale)/2-def.vb.y*scale;
- const routes=selected.map((c,ri)=>{const n=8,pts=[];for(let i=0;i<n;i++){const p=c.node.getPointAtLength(c.len*i/n);pts.push({x:ox+p.x*scale,y:oy+p.y*scale});}return{color:c.fill,points:pts,sourceIndex:c.index};});
- hiddenSvg.replaceChildren();return{routes,rect:{x:ox+def.vb.x*scale,y:oy+def.vb.y*scale,w:def.vb.w*scale,h:def.vb.h*scale},scale};
+ const routes=selected.map(c=>{
+  const dense=[],n=Math.max(48,Math.min(120,Math.ceil(c.len/12)));
+  for(let i=0;i<n;i++){const p=c.path.getPointAt(c.len*i/n);dense.push({x:ox+p.x*scale,y:oy+p.y*scale});}
+  const anchors=[],target=Math.max(6,Math.min(12,count));
+  for(let i=0;i<target;i++){const p=c.path.getPointAt(c.len*i/target);const q={x:ox+p.x*scale,y:oy+p.y*scale};if(anchors.every(v=>Math.hypot(v.x-q.x,v.y-q.y)>=50))anchors.push(q);}
+  if(anchors.length<6){anchors.length=0;for(let i=0;i<8;i++){const p=c.path.getPointAt(c.len*i/8);anchors.push({x:ox+p.x*scale,y:oy+p.y*scale});}}
+  if(anchors.length%2)anchors.pop();
+  return{color:c.fill,points:anchors,contour:dense,sourceIndex:c.index};
+ });
+ imported.remove();paperScope.project.activeLayer.removeChildren();
+ const rect={x:ox+def.vb.x*scale,y:oy+def.vb.y*scale,w:def.vb.w*scale,h:def.vb.h*scale};
+ return{routes,rect,scale};
 }
 function lineIntersection(a,b,c,d){const den=(b.x-a.x)*(d.y-c.y)-(b.y-a.y)*(d.x-c.x);if(Math.abs(den)<1e-7)return null;const t=((c.x-a.x)*(d.y-c.y)-(c.y-a.y)*(d.x-c.x))/den,u=((c.x-a.x)*(b.y-a.y)-(c.y-a.y)*(b.x-a.x))/den;if(t<=.025||t>=.975||u<=.025||u>=.975)return null;return{t,u,p:{x:a.x+t*(b.x-a.x),y:a.y+t*(b.y-a.y)}};}
 function addCrossings(routes){if(routes.length<2)return;const adds=routes.map(()=>new Map());for(let r=0;r<routes.length;r++)for(let q=r+1;q<routes.length;q++){const A=routes[r].points,B=routes[q].points;for(let i=0;i<A.length;i++)for(let j=0;j<B.length;j++){const hit=lineIntersection(A[i],A[(i+1)%A.length],B[j],B[(j+1)%B.length]);if(hit){if(!adds[r].has(i))adds[r].set(i,[]);if(!adds[q].has(j))adds[q].set(j,[]);adds[r].get(i).push({t:hit.t,p:hit.p});adds[q].get(j).push({t:hit.u,p:hit.p});}}}
@@ -79,16 +95,16 @@ function selectEdge(s,e){
  if(!e||e.owner!==s.id||e.color!==s.color||e.used){lose(s,e);return false;}
  s.edgeChoice={edge:e,node:e.a===s.currentPeg?e.b:e.a};s.from=s.currentPeg;s.to=s.edgeChoice.node;s.t=0;s.x=s.currentPeg.x;s.y=s.currentPeg.y;s.angle=Math.atan2(s.to.y-s.y,s.to.x-s.x);return true;
 }
-async function initLevel(n){const token=++loadToken;clearGame();level=Math.max(0,Math.min(levels.length-1,n));gameState=STATE.PLAYING;hud.style.display='flex';screen.style.display='none';const cfg=levels[level];levelLabel.textContent=(level<4?'ОБУЧЕНИЕ '+(level+1)+'/4':'УРОВЕНЬ '+(level+1))+' · '+cfg.name;progressText.textContent='ЗАГРУЗКА';try{const def=await loadSvg(cfg.file);if(token!==loadToken){URL.revokeObjectURL(def.url);return;}const parsed=sampleSvg(def,level<4?12:14,level<2?1:2);levelArt={...def,rect:parsed.rect};buildGraph(parsed,level);progressText.textContent='0%';localStorage.setItem('silkShapeLevel',String(level));}catch(err){if(token!==loadToken)return;gameState=STATE.LOSE;showPanel('Не удалось загрузить рисунок',String(err.message||err),'ПОВТОРИТЬ',()=>initLevel(level));}}
+async function initLevel(n){const token=++loadToken;clearGame();level=Math.max(0,Math.min(levels.length-1,n));gameState=STATE.PLAYING;hud.style.display='flex';screen.style.display='none';const cfg=levels[level];levelLabel.textContent=(level<4?'ОБУЧЕНИЕ '+(level+1)+'/4':'УРОВЕНЬ '+(level+1))+' · '+cfg.name;progressText.textContent='ЗАГРУЗКА';try{const def=await loadSvg(cfg.file);if(token!==loadToken){URL.revokeObjectURL(def.url);return;}const parsed=sampleSvg(def,level<4?12:14,level<2?1:2);levelArt={...def,rect:parsed.rect,routes:parsed.routes};roughCache=null;buildGraph(parsed,level);progressText.textContent='0%';localStorage.setItem('silkShapeLevel',String(level));}catch(err){if(token!==loadToken)return;gameState=STATE.LOSE;showPanel('Не удалось загрузить рисунок',String(err.message||err),'ПОВТОРИТЬ',()=>initLevel(level));}}
 function totalEdges(){return spiders.reduce((a,s)=>a+s.routeEdges.length,0);}
 function updateProgress(){const done=spiders.reduce((a,s)=>a+s.progress,0),v=totalEdges()?Math.min(100,Math.floor(done/totalEdges()*100)):0;progressBar.style.width=v+'%';progressText.textContent=v+'%';}
 function showMenu(){const training=savedLevel<4;screen.className='menu';screen.style.display='block';screen.innerHTML='<div class="menu-brand">SILK <span>&amp; SHAPE</span></div><div class="menu-bottom"><div class="menu-status">'+(training?'ОБУЧЕНИЕ: '+(savedLevel+1)+' ИЗ 4':'УРОВЕНЬ '+(savedLevel+1)+' ИЗ 12')+'</div><div class="menu-actions"><button class="primary" id="play">'+(training?'ПРОЙТИ ОБУЧЕНИЕ':'ИГРАТЬ')+'</button><button class="secondary" id="settingsOpen">НАСТРОЙКИ</button></div></div>';document.getElementById('play').onclick=startGame;document.getElementById('settingsOpen').onclick=showSettings;loadDemo();}
-function showSettings(){screen.className='modal';screen.style.display='flex';screen.innerHTML='<div class="card"><div class="eyebrow">SILK &amp; SHAPE</div><h1>Настройки</h1><p class="subtitle">Звук: '+(soundOn?'Включён':'Выключен')+'</p><button class="primary olive" id="soundToggle">ЗВУК: '+(soundOn?'ВКЛ':'ВЫКЛ')+'</button><button class="secondary" id="resetProgress">СБРОСИТЬ ПРОГРЕСС</button><button class="textButton" id="settingsBack">НАЗАД</button></div>';document.getElementById('soundToggle').onclick=()=>{soundOn=!soundOn;localStorage.setItem('silkShapeSound',soundOn?'on':'off');if(soundOn)audioInit();showSettings();};document.getElementById('resetProgress').onclick=()=>{if(confirm('Сбросить прогресс и начать с обучения?')){savedLevel=0;localStorage.setItem('silkShapeLevel','0');showMenu();}};document.getElementById('settingsBack').onclick=showMenu;}
-function showPanel(title,sub,button,fn){screen.innerHTML='<div class="card"><div class="eyebrow">SILK &amp; SHAPE · МАСТЕРСКАЯ</div><h1>'+title+'</h1><p class="subtitle">'+sub+'</p><button class="primary" id="panelAction">'+button+'</button></div>';screen.className='modal';screen.style.display='flex';document.getElementById('panelAction').onclick=fn;}
+function showSettings(){if(window.anime)anime.remove(screen);screen.className='modal';screen.style.display='flex';screen.innerHTML='<div class="card"><div class="eyebrow">SILK &amp; SHAPE</div><h1>Настройки</h1><p class="subtitle">Звук: '+(soundOn?'Включён':'Выключен')+'</p><button class="primary olive" id="soundToggle">ЗВУК: '+(soundOn?'ВКЛ':'ВЫКЛ')+'</button><button class="secondary" id="resetProgress">СБРОСИТЬ ПРОГРЕСС</button><button class="textButton" id="settingsBack">НАЗАД</button></div>';document.getElementById('soundToggle').onclick=()=>{soundOn=!soundOn;localStorage.setItem('silkShapeSound',soundOn?'on':'off');if(soundOn)audioInit();showSettings();};document.getElementById('resetProgress').onclick=()=>{if(confirm('Сбросить прогресс и начать с обучения?')){savedLevel=0;localStorage.setItem('silkShapeLevel','0');showMenu();}};document.getElementById('settingsBack').onclick=showMenu;const card=screen.querySelector('.card');if(window.anime)anime({targets:card,opacity:[0,1],translateY:[14,0],duration:360,easing:'easeOutCubic'});}
+function showPanel(title,sub,button,fn){if(window.anime)anime.remove(screen);screen.innerHTML='<div class="card"><div class="eyebrow">SILK &amp; SHAPE · МАСТЕРСКАЯ</div><h1>'+title+'</h1><p class="subtitle">'+sub+'</p><button class="primary" id="panelAction">'+button+'</button></div>';screen.className='modal';screen.style.display='flex';document.getElementById('panelAction').onclick=fn;const card=screen.querySelector('.card');if(window.anime)anime({targets:card,opacity:[0,1],translateY:[18,0],scale:[.97,1],duration:420,easing:'easeOutElastic(1,.65)'});}
 async function startGame(){if(gameState!==STATE.MENU)return;destroyDemo();audioInit();await initLevel(savedLevel);}
 function goHome(){++loadToken;clearGame();gameState=STATE.MENU;hud.style.display='none';screen.style.display='block';showMenu();}
 async function nextLevel(){screen.style.display='none';if(level>=levels.length-1){goHome();return;}savedLevel=Math.min(levels.length-1,level+1);localStorage.setItem('silkShapeLevel',String(savedLevel));await initLevel(savedLevel);}
-function win(){if(gameState!==STATE.PLAYING)return;gameState=STATE.WIN;reveal=0;winElapsed=0;fireworksStarted=false;particles=[];screen.style.display='none';savedLevel=Math.min(levels.length-1,level+1);localStorage.setItem('silkShapeLevel',String(savedLevel));}
+function win(){if(gameState!==STATE.PLAYING)return;gameState=STATE.WIN;reveal=0;winMotion.reveal=0;if(window.anime)anime({targets:winMotion,reveal:1,duration:1500,easing:'easeOutCubic',update:()=>{reveal=winMotion.reveal;}});winElapsed=0;fireworksStarted=false;particles=[];screen.style.display='none';savedLevel=Math.min(levels.length-1,level+1);localStorage.setItem('silkShapeLevel',String(savedLevel));}
 function showWinPanel(){if(level===levels.length-1)showPanel('Все узоры готовы!','Ты сплёл все 12 рисунков.','В МЕНЮ',goHome);else if(level===3)showPanel('Обучение пройдено!','Теперь открыты все рисунки.','СЛЕДУЮЩИЙ УРОВЕНЬ',nextLevel);else showPanel('Узор готов!','Оригинальная иллюстрация проявилась сквозь нити.','СЛЕДУЮЩИЙ УРОВЕНЬ',nextLevel);}
 function startFireworks(){fireworksStarted=true;chord();const colors=['#D9534F','#2A9D8F','#477DA8','#E9C46A','#C85A32','#8C6BB1','#588157'];for(let b=0;b<6;b++){const ox=W*(.18+Math.random()*.64),oy=H*(.2+Math.random()*.48);for(let i=0;i<24;i++){const a=TAU*i/24+Math.random()*.1,sp=48+Math.random()*115;particles.push({x:ox,y:oy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1.3+Math.random()*.5,color:colors[(i+b)%colors.length],r:1.5+Math.random()*3});}}}
 function lose(s,e){if(gameState!==STATE.PLAYING)return;gameState=STATE.LOSE;loseElapsed=0;s.broken=true;s.hang=0;s.vy=10;if(e)e.failed=true;for(let i=0;i<28;i++){const a=Math.random()*TAU,r=2+Math.random()*9;s.tangle??=[];s.tangle.push({a,r,phase:Math.random()*TAU});}for(let i=0;i<22;i++)particles.push({x:s.x,y:s.y,vx:(Math.random()-.5)*100,vy:(Math.random()-.7)*100,life:1,color:'#C7433E',r:Math.random()*3+1});}
@@ -106,13 +122,13 @@ function updateGame(dt){
  if(gameState===STATE.LOSE){loseElapsed+=dt;for(const s of spiders)if(s.broken){s.hang+=dt;s.vy+=100*dt;s.y=Math.min(H*.82,s.y+s.vy*dt);s.x+=Math.sin(s.hang*3.2)*12*dt;s.swing=Math.sin(s.hang*3.5)*.32;}particles.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=120*dt;p.life-=dt;});particles=particles.filter(p=>p.life>0);if(loseElapsed>1.05&&screen.style.display==='none')showPanel('Засада! Нить запуталась','Жучок выбрал чужую или уже сплетённую нить.','ЗАНОВО',()=>initLevel(level));return;}
  if(gameState===STATE.WIN){winElapsed+=dt;reveal=Math.min(1,winElapsed/1.5);if(winElapsed>=1.5&&!fireworksStarted)startFireworks();if(fireworksStarted){particles.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=95*dt;p.vx*=.992;p.life-=dt;});particles=particles.filter(p=>p.life>0);}if(winElapsed>=2.5&&screen.style.display==='none')showWinPanel();return;}
  if(gameState!==STATE.PLAYING)return;
- for(const p of pegs)p.pulse=Math.max(0,p.pulse-dt*2.5);for(const e of edges)e.tension=Math.max(0,e.tension-dt*2.7);
+ for(const p of pegs)p.pulse=Math.max(0,p.pulse-dt*2.5);
  for(const s of spiders){if(s.done||s.broken)continue;
   if(!s.edgeChoice){const e=defaultEdge(s);if(!e){lose(s,null);return;}if(!selectEdge(s,e))return;}
   const e=s.edgeChoice.edge,from=s.currentPeg,to=s.edgeChoice.node;if(e.used||e.owner!==s.id||e.color!==s.color){lose(s,e);return;}
   const dx=to.x-from.x,dy=to.y-from.y,dist=Math.hypot(dx,dy)||1,ang=Math.atan2(dy,dx);let diff=((ang-s.angle+Math.PI*3)%TAU)-Math.PI;s.angle+=diff*Math.min(1,dt*12);
   s.t=Math.min(1,s.t+levels[level].speed*dt/dist);s.x=from.x+dx*s.t;s.y=from.y+dy*s.t;
-  if(s.t>=1){e.used=true;e.drawn=true;e.tension=1;s.progress++;s.currentPeg=to;s.x=to.x;s.y=to.y;s.nx=to.nx;s.ny=to.ny;s.from=from;s.to=to;s.t=0;s.edgeChoice=null;pluck(s.id);
+  if(s.t>=1){e.used=true;e.drawn=true;e.tension=1;s.progress++;if(window.anime)anime({targets:e,tension:[0,1],duration:520,easing:'easeOutElastic(1, .55)',complete:()=>{if(window.anime)anime({targets:e,tension:0,duration:700,easing:'easeOutQuad'});}});s.currentPeg=to;s.x=to.x;s.y=to.y;s.nx=to.nx;s.ny=to.ny;s.from=from;s.to=to;s.t=0;s.edgeChoice=null;pluck(s.id);
    if(s.progress>=s.routeEdges.length){s.done=true;s.x=to.x;s.y=to.y;}
    else{const next=defaultEdge(s);if(next){const idx=to.neighbors.findIndex(v=>v.edge===next);to.arrows[s.id]=next; s.choiceIndex=idx;}else{lose(s,null);return;}}
    updateProgress();
@@ -130,7 +146,18 @@ function drawPeg(p,alpha=1){
 }
 function drawBug(s){ctx.save();ctx.translate(s.x,s.y);ctx.rotate(s.angle+(s.swing||0));const color=s.color;ctx.strokeStyle='#594737';ctx.lineWidth=1.7;ctx.lineCap='round';for(let i=0;i<3;i++)for(const side of [-1,1]){const y=side*(2+i*2.1),kick=Math.sin(time*19+i*1.8+(side>0?Math.PI:0))*3.2;ctx.beginPath();ctx.moveTo(-2+i*2,y*.35);ctx.lineTo(-5+i*2,y+kick*.45);ctx.lineTo(-8+i*2,y+side*(5+Math.abs(kick)));ctx.stroke();}ctx.fillStyle='rgba(75,55,39,.2)';ctx.beginPath();ctx.ellipse(-2,2,8,5.7,0,0,TAU);ctx.fill();ctx.fillStyle=color;ctx.strokeStyle='#594737';ctx.lineWidth=1.15;ctx.beginPath();ctx.ellipse(-1,0,8.5,5.6,0,0,TAU);ctx.fill();ctx.stroke();ctx.fillStyle='#594737';ctx.beginPath();ctx.arc(7,0,3.5,0,TAU);ctx.fill();ctx.fillStyle='#fff8e9';ctx.beginPath();ctx.arc(8.2,-1.2,.8,0,TAU);ctx.arc(8.2,1.2,.8,0,TAU);ctx.fill();ctx.strokeStyle='#594737';ctx.beginPath();ctx.moveTo(8,-2);ctx.quadraticCurveTo(11,-7,14,-6);ctx.moveTo(8,2);ctx.quadraticCurveTo(11,7,14,6);ctx.stroke();ctx.restore();}
 function drawTangle(s){if(!s.tangle)return;ctx.save();ctx.translate(s.x,s.y);for(let i=0;i<7;i++){ctx.beginPath();for(let j=0;j<=30;j++){const a=j/30*TAU*2+i*.8,r=5+Math.sin(a*2+i)*4;const x=Math.cos(a)*r,y=Math.sin(a)*r; if(!j)ctx.moveTo(x,y);else ctx.lineTo(x,y);}ctx.strokeStyle=i%2?s.color:'#C85A32';ctx.lineWidth=2.2;ctx.stroke();}ctx.restore();if(s.from)yarn(s.from,{x:s.x,y:s.y-2},s.color,2.6,1,0,0,1);}
-function drawArt(alpha){if(!levelArt||!levelArt.image.complete)return;const r=levelArt.rect;ctx.save();ctx.globalAlpha=alpha;ctx.drawImage(levelArt.image,r.x,r.y,r.w,r.h);ctx.restore();}
+function drawArt(alpha){
+ if(!levelArt||!levelArt.image.complete)return;const r=levelArt.rect;
+ ctx.save();ctx.globalAlpha=alpha;ctx.drawImage(levelArt.image,r.x,r.y,r.w,r.h);ctx.restore();
+ if(window.rough&&levelArt.routes&&alpha>.05){
+  const key=levelArt.file+':'+W+':'+H;
+  if(!roughCache||roughCacheKey!==key){const c=document.createElement('canvas');c.width=Math.ceil(W);c.height=Math.ceil(H);const rc=rough.canvas(c);
+   levelArt.routes.forEach((route,i)=>{if(route.contour?.length>5){const pts=route.contour.map(p=>[p.x,p.y]);rc.polygon(pts,{stroke:route.color,strokeWidth:1.15,roughness:.65,bowing:.35,fill:route.color,fillStyle:'hachure',hachureGap:5,hachureAngle:45+i*18,fillWeight:.7,disableMultiStroke:true});}});
+   roughCache=c;roughCacheKey=key;
+  }
+  ctx.save();ctx.globalAlpha=alpha*.42;ctx.drawImage(roughCache,0,0,W,H);ctx.restore();
+ }
+}
 function drawGame(){
  for(const e of edges){if(e.used)yarn(e.a,e.b,e.color,4.5,e.phase,0,e.tension,1);else{ctx.save();ctx.setLineDash([2.5,7]);ctx.lineDashOffset=-time*5;ctx.strokeStyle=e.color;ctx.globalAlpha=.7;ctx.lineWidth=2.4;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(e.a.x,e.a.y);ctx.lineTo(e.b.x,e.b.y);ctx.stroke();ctx.restore();}}
  for(const s of spiders)if(s.edgeChoice&&s.t>0&&!s.broken)yarn(s.currentPeg,{x:s.x,y:s.y},s.color,4.3,s.id*2.3,9,0,1);
@@ -147,7 +174,7 @@ async function loadDemo(){
   pts.forEach(p=>local.push({id:local.length,x:p.x,y:p.y,nx:p.x/W,ny:p.y/H,neighbors:[],arrows:{},pulse:0}));
   const add=(a,b)=>{const e={id:routeEdges.length,a,b,color:parsed.routes[0].color,owner:0,drawn:false,used:false,tension:0,phase:routeEdges.length};routeEdges.push(e);a.neighbors.push({node:b,edge:e});b.neighbors.push({node:a,edge:e});};
   for(let i=0;i<local.length;i++)add(local[i],local[(i+1)%local.length]);for(let i=0;i<local.length;i+=2)add(local[i],local[(i+2)%local.length]);
-  const tour=makeEulerTour(routeEdges,local[0]);demo.art={...def,rect:parsed.rect};demo.pegs=local;demo.edges=routeEdges;demo.bugs=[{id:0,color:parsed.routes[0].color,x:local[0].x,y:local[0].y,nx:local[0].nx,ny:local[0].ny,angle:0,currentPeg:local[0],edgeChoice:null,t:0,progress:0,tour,tourCursor:0,done:false}];demo.phase='draw';demo.ready=true;
+  const tour=makeEulerTour(routeEdges,local[0]);demo.art={...def,rect:parsed.rect,routes:parsed.routes};demo.pegs=local;demo.edges=routeEdges;demo.bugs=[{id:0,color:parsed.routes[0].color,x:local[0].x,y:local[0].y,nx:local[0].nx,ny:local[0].ny,angle:0,currentPeg:local[0],edgeChoice:null,t:0,progress:0,tour,tourCursor:0,done:false}];demo.phase='draw';demo.ready=true;
  }catch(e){demo.ready=false;}finally{demo.loading=false;}
 }
 function updateDemo(dt){
@@ -169,5 +196,5 @@ function draw(){drawBackground();if(gameState===STATE.MENU)drawDemo();else{drawG
 function update(dt){time+=dt;if(gameState===STATE.MENU){updateDemo(dt);return;}updateGame(dt);}
 function frame(ts){const dt=Math.min(.04,(ts-last)/1000||0);last=ts;update(dt);draw();requestAnimationFrame(frame);}
 function destroyDemo(){demo.ready=false;demo.loading=false;if(demo.art&&demo.art.url)URL.revokeObjectURL(demo.art.url);demo.bugs=[];demo.pegs=[];demo.edges=[];demo.art=null;demo.phase='draw';demo.hold=0;demo.fade=0;demo.reveal=0;}
-resize();showMenu();requestAnimationFrame(frame);
+initDrawingLibraries();resize();showMenu();requestAnimationFrame(frame);
 })();
