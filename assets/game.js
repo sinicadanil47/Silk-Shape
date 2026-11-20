@@ -27,27 +27,35 @@ const LEVELS=[
   name:'ПОНЧИК',title:'Пончик',start:0,
   points:Array.from({length:8},(_,i)=>{
    const a=-Math.PI/2+i*Math.PI/4;
-   return [.50+.24*Math.cos(a),.46+.24*Math.sin(a)];
-  }),
-  links:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,0],[0,4]]
+   return [.50+.36*Math.cos(a),.50+.36*Math.sin(a)];
+  }).concat([[.50,.50]]),
+  // Outer ring, two crossing diameters routed through the central peg,
+  // and two short inner braces keep every vertex even for an Euler circuit.
+  links:[
+   [0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,0],
+   [7,8],[8,3],[1,8],[8,5],
+   [1,3],[5,7]
+  ]
  },
  {
   name:'КОРОНА',title:'Корона',start:0,
   points:[
-   [.20,.68], // 0 left base
-   [.28,.46], // 1 left wall
-   [.36,.32], // 2 left tooth valley
-   [.31,.16], // 3 left tooth tip
-   [.50,.34], // 4 center notch
-   [.69,.16], // 5 right tooth tip
-   [.64,.32], // 6 right tooth valley
-   [.72,.46], // 7 right wall
-   [.80,.68], // 8 right base
-   [.50,.68]  // 9 middle base
+   [.18,.68], // 0 left base corner
+   [.50,.68], // 1 base center
+   [.82,.68], // 2 right base corner
+   [.15,.48], // 3 left side
+   [.85,.48], // 4 right side
+   [.18,.25], // 5 left tooth tip
+   [.34,.42], // 6 left valley
+   [.50,.20], // 7 center high tip
+   [.66,.42], // 8 right valley
+   [.82,.25]  // 9 right tooth tip
   ],
   links:[
-   [0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8],[8,9],[9,0],
-   [0,4],[4,7],[7,2]
+   // Continuous crown silhouette
+   [0,3],[3,5],[5,6],[6,7],[7,8],[8,9],[9,4],[4,2],[2,1],[1,0],
+   // Three internal braces create deliberate branch decisions
+   [6,1],[8,1],[6,8]
   ]
  },
  {
@@ -75,12 +83,18 @@ const LEVELS=[
 ];
 let levelIndex=0;
 let rabbitPoints=LEVELS[0].points,rabbitLinks=LEVELS[0].links;
+let boardSize=0,boardLeft=0,boardTop=0;
+function mapBoardPoint(nx,ny){
+ return {x:boardLeft+nx*boardSize,y:boardTop+ny*boardSize};
+}
 function resizeCanvas(){
  const r=game.getBoundingClientRect();W=r.width;H=r.height;D=Math.min(window.devicePixelRatio||1,2);
  canvas.width=Math.round(W*D);canvas.height=Math.round(H*D);ctx.setTransform(D,0,0,D,0,0);
+ boardSize=Math.min(W*.86,H*.76);
+ boardLeft=(W-boardSize)/2;boardTop=(H-boardSize)/2;
  grain=Array.from({length:Math.floor(W*H/780)},()=>({x:Math.random()*W,y:Math.random()*H,r:.3+Math.random()*.8,a:.025+Math.random()*.065}));
- for(const n of nodes){n.x=n.nx*W;n.y=n.ny*H;}
- if(bug){bug.x=bug.nx*W;bug.y=bug.ny*H;}
+ for(const n of nodes){const p=mapBoardPoint(n.nx,n.ny);n.x=p.x;n.y=p.y;}
+ if(bug){const p=mapBoardPoint(bug.nx,bug.ny);bug.x=p.x;bug.y=p.y;}
 }
 function installResizeHandling(){
  window.addEventListener('resize',resizeCanvas,{passive:true});
@@ -90,7 +104,7 @@ function installResizeHandling(){
 function makeGraph(){
  const level=LEVELS[levelIndex];
  rabbitPoints=level.points;rabbitLinks=level.links;
- nodes=rabbitPoints.map((p,id)=>({id,nx:p[0],ny:p[1],x:p[0]*W,y:p[1]*H,targetNodeId:null,neighbors:[],pulse:0}));
+ nodes=rabbitPoints.map((p,id)=>{const q=mapBoardPoint(p[0],p[1]);return {id,nx:p[0],ny:p[1],x:q.x,y:q.y,targetNodeId:null,neighbors:[],pulse:0};});
  edges=rabbitLinks.map(([ai,bi],id)=>{
   const a=nodes[ai],b=nodes[bi],e={id,a,b,used:false,phase:id*.63};
   a.neighbors.push({node:b,edge:e});b.neighbors.push({node:a,edge:e});return e;
@@ -206,7 +220,7 @@ function update(dt){
  if(state===STATE.MOVING){
   const dx=bug.to.x-bug.from.x,dy=bug.to.y-bug.from.y,dist=Math.hypot(dx,dy)||1;
   bug.t=Math.min(1,bug.t+bug.speed*dt/dist);bug.x=bug.from.x+dx*bug.t;bug.y=bug.from.y+dy*bug.t;
-  bug.nx=bug.x/W;bug.ny=bug.y/H;
+  bug.nx=bug.from.nx+(bug.to.nx-bug.from.nx)*bug.t;bug.ny=bug.from.ny+(bug.to.ny-bug.from.ny)*bug.t;
   if(bug.t>=1){
    bug.edge.used=true;bug.progress++;bug.currentNode=bug.to;bug.x=bug.to.x;bug.y=bug.to.y;bug.nx=bug.to.nx;bug.ny=bug.to.ny;
    bug.from=null;bug.to=null;bug.edge=null;bug.t=0;state=STATE.PLAYING;playPluck();setProgress();
