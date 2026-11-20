@@ -54,7 +54,7 @@ function makeGraph(){
  for(const step of tour)if(nodes[step.from].targetNodeId===null)nodes[step.from].targetNodeId=step.to;
  for(const n of nodes)if(n.targetNodeId===null)n.targetNodeId=n.neighbors[0]?.node.id??null;
  const start=nodes[2];
- bug={x:start.x,y:start.y,nx:start.nx,ny:start.ny,currentNode:start,from:null,to:null,edge:null,t:0,speed:205,angle:0,progress:0,broken:false,swing:0,hang:0,vy:0};
+ bug={x:start.x,y:start.y,nx:start.nx,ny:start.ny,currentNode:start,from:null,to:null,edge:null,t:0,speed:205,angle:Math.atan2(nodes[start.targetNodeId].y-start.y,nodes[start.targetNodeId].x-start.x),progress:0,broken:false,swing:0,hang:0,vy:0};
 }
 function makeEulerTour(start){
  const adj=nodes.map(()=>[]);for(const e of edges){adj[e.a.id].push(e);adj[e.b.id].push(e);}
@@ -114,7 +114,7 @@ function restart(){
 }
 function lose(){
  if(state===STATE.LOSE||state===STATE.WIN)return;
- state=STATE.LOSE;loseTimer=0;
+ state=STATE.LOSE;loseTimer=0;bug.from=bug.currentNode;
  if(bug.edge){bug.from=bug.from||bug.currentNode;bug.edge=null;}
  bug.broken=true;bug.hang=0;bug.vy=12;
  for(let i=0;i<28;i++)particles.push({x:bug.x,y:bug.y,vx:(Math.random()-.5)*120,vy:(Math.random()-.7)*110,life:1,color:i%2?'#C85A32':'#7A5940',r:1.5+Math.random()*3});
