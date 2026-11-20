@@ -120,7 +120,7 @@ document.getElementById('home').onclick=goHome;
 document.getElementById('restart').onclick=()=>{if(gameState===STATE.PLAYING||gameState===STATE.LOSE)initLevel(level);};
 function updateGame(dt){
  if(gameState===STATE.LOSE){loseElapsed+=dt;for(const s of spiders)if(s.broken){s.hang+=dt;s.vy+=100*dt;s.y=Math.min(H*.82,s.y+s.vy*dt);s.x+=Math.sin(s.hang*3.2)*12*dt;s.swing=Math.sin(s.hang*3.5)*.32;}particles.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=120*dt;p.life-=dt;});particles=particles.filter(p=>p.life>0);if(loseElapsed>1.05&&screen.style.display==='none')showPanel('Засада! Нить запуталась','Жучок выбрал чужую или уже сплетённую нить.','ЗАНОВО',()=>initLevel(level));return;}
- if(gameState===STATE.WIN){winElapsed+=dt;reveal=Math.min(1,winElapsed/1.5);if(winElapsed>=1.5&&!fireworksStarted)startFireworks();if(fireworksStarted){particles.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=95*dt;p.vx*=.992;p.life-=dt;});particles=particles.filter(p=>p.life>0);}if(winElapsed>=2.5&&screen.style.display==='none')showWinPanel();return;}
+ if(gameState===STATE.WIN){winElapsed+=dt;if(!window.anime)reveal=Math.min(1,winElapsed/1.5);if(winElapsed>=1.5&&!fireworksStarted)startFireworks();if(fireworksStarted){particles.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=95*dt;p.vx*=.992;p.life-=dt;});particles=particles.filter(p=>p.life>0);}if(winElapsed>=2.5&&screen.style.display==='none')showWinPanel();return;}
  if(gameState!==STATE.PLAYING)return;
  for(const p of pegs)p.pulse=Math.max(0,p.pulse-dt*2.5);
  for(const s of spiders){if(s.done||s.broken)continue;
