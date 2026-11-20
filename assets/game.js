@@ -56,7 +56,7 @@ function makeEulerTour(routeEdges,startPeg){
 function buildGraph(parsed,n){
  const routes=parsed.routes.slice(0,n<2?1:2),map=new Map(),graphEdges=[];
  function pegAt(p){const k=Math.round(p.x)+':'+Math.round(p.y);if(!map.has(k))map.set(k,{id:map.size,x:p.x,y:p.y,nx:p.x/W,ny:p.y/H,neighbors:[],arrows:{},pulse:0});return map.get(k);}
- const nodeSets=routes.map(route=>{const pts=route.points,clean=[];for(const p of pts){if(!clean.length||Math.hypot(p.x-clean[clean.length-1].x,p.y-clean[clean.length-1].y)>=50)clean.push(p);}if(clean.length<6)return pts.map(pegAt);return clean.slice(0,12).map(pegAt);});
+ const nodeSets=routes.map(route=>{const pts=route.points,clean=[];for(const p of pts){if(!clean.length||Math.hypot(p.x-clean[clean.length-1].x,p.y-clean[clean.length-1].y)>=50)clean.push(p);}if(clean.length<6)return pts.map(p=>pegAt(p));if(clean.length%2)clean.pop();return clean.slice(0,12).map(p=>pegAt(p));});
  if(nodeSets.length>1){let best=null;for(let i=0;i<nodeSets[0].length;i++)for(let j=0;j<nodeSets[1].length;j++){const a=nodeSets[0][i],b=nodeSets[1][j],d=Math.hypot(a.x-b.x,a.y-b.y);if(!best||d<best.d)best={i,j,a,b,d};}if(best&&best.d<Math.min(W,H)*.19){const shared={id:map.size,x:(best.a.x+best.b.x)/2,y:(best.a.y+best.b.y)/2,nx:(best.a.x+best.b.x)/(2*W),ny:(best.a.y+best.b.y)/(2*H),neighbors:[],arrows:{},pulse:0};nodeSets[0][best.i]=shared;nodeSets[1][best.j]=shared;}}
  const routeModels=[];
  routes.forEach((route,owner)=>{const nodes=nodeSets[owner],unique=nodes.filter((p,i)=>p!==nodes[(i+1)%nodes.length]);const routeEdges=[];
@@ -96,7 +96,7 @@ function tap(x,y){
  if(gameState!==STATE.PLAYING)return;let hit=null,dist=1e9;for(const p of pegs){const d=Math.hypot(x-p.x,y-p.y);if(d<Math.max(27,W*.065)&&d<dist){hit=p;dist=d;}}if(!hit)return;
  const s=spiders.find(v=>!v.done&&!v.broken&&v.currentPeg===hit);if(!s)return;
  const options=hit.neighbors; if(!options.length){lose(s,null);return;}
- const current=s.edgeChoice?.edge,idx=options.findIndex(v=>v.edge===current);
+ const current=s.edgeChoice?.edge||hit.arrows[s.id],idx=options.findIndex(v=>v.edge===current);
  const next=options[(idx+1+options.length)%options.length];hit.arrows[s.id]=next.edge;hit.pulse=1;pluck(s.id);selectEdge(s,next.edge);
 }
 canvas.addEventListener('pointerdown',e=>{e.preventDefault();const r=canvas.getBoundingClientRect();tap(e.clientX-r.left,e.clientY-r.top);});
