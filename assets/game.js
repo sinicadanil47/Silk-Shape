@@ -12,29 +12,7 @@ const TAU=Math.PI*2;
 const PAPER='#F4EFE6',INK='#5C4D3C',THREAD='#C85A32';
 const STATE={PLAYING:'PLAYING',MOVING:'MOVING',LOSE:'LOSE',WIN:'WIN'};
 let state=STATE.PLAYING,W=0,H=0,D=1,last=0,clock=0,bug=null,nodes=[],edges=[],particles=[],grain=[],loseTimer=0,winTimer=0;
-// Straight-segment silhouettes; every listed coordinate is a deliberate peg.
-const TEMPLATES=[
-{name:'ТРЕУГОЛЬНИК',p:[[.5,.18],[.66,.48],[.82,.78],[.18,.78]]},
-{name:'КОНВЕРТ',p:[[.18,.28],[.82,.28],[.82,.74],[.18,.74],[.5,.5]]},
-{name:'ПЕСОЧНЫЕ ЧАСЫ',p:[[.2,.2],[.8,.2],[.8,.8],[.2,.8],[.5,.5]]},
-{name:'ДОМИК',p:[[.18,.48],[.5,.18],[.82,.48],[.82,.82],[.18,.82]]},
-{name:'СТРЕЛА',p:[[.18,.38],[.58,.38],[.58,.18],[.84,.5],[.58,.82],[.58,.62],[.18,.62]]},
-{name:'ФЛАЖОК',p:[[.28,.18],[.28,.82],[.28,.22],[.78,.32],[.28,.44]]},
-{name:'МОЛНИЯ',p:[[.58,.16],[.3,.52],[.52,.52],[.4,.84],[.72,.42],[.5,.42]]},
-{name:'КРЕСТ',p:[[.5,.18],[.5,.82],[.18,.5],[.82,.5]]},
-{name:'ЛОДОЧКА',p:[[.18,.58],[.82,.58],[.68,.8],[.32,.8],[.5,.2]]},
-{name:'РОМБ',p:[[.5,.16],[.84,.5],[.5,.84],[.16,.5],[.5,.5]]},
-{name:'АРКА',p:[[.18,.82],[.18,.52],[.3,.28],[.5,.18],[.7,.28],[.82,.52],[.82,.82]]},
-{name:'ЗИГЗАГ',p:[[.16,.28],[.42,.68],[.58,.28],[.84,.68]]},
-{name:'КОРОНА',p:[[.18,.76],[.18,.34],[.38,.56],[.5,.2],[.62,.56],[.82,.34],[.82,.76]]},
-{name:'ЗОНТИК',p:[[.16,.48],[.28,.28],[.5,.18],[.72,.28],[.84,.48],[.5,.48],[.5,.82]]},
-{name:'ЁЛОЧКА',p:[[.5,.16],[.2,.5],[.42,.5],[.18,.78],[.82,.78],[.58,.5],[.8,.5]]},
-{name:'ЛЕСЕНКА',p:[[.2,.78],[.2,.58],[.48,.58],[.48,.38],[.78,.38],[.78,.18]]},
-{name:'ЧАШКА',p:[[.2,.28],[.68,.28],[.68,.7],[.2,.7],[.82,.4],[.82,.62]]},
-{name:'СЕРДЦЕ',p:[[.5,.8],[.18,.48],[.18,.3],[.38,.2],[.5,.36],[.82,.3],[.82,.48]]},
-{name:'ЗВЕЗДА',p:[[.5,.16],[.7,.38],[.84,.5],[.62,.62],[.5,.84],[.38,.62],[.16,.5]]},
-{name:'УГОЛОК-СТРЕЛКА',p:[[.18,.18],[.18,.82],[.82,.82],[.5,.5]]}
-];
+const LEVEL_DATA=[{"name":"Треугольник","start":0,"nodes":[[0.5,0.22],[0.22,0.78],[0.78,0.78]],"edges":[[0,1],[1,2],[2,0]]},{"name":"Домик","start":0,"nodes":[[0.24,0.78],[0.24,0.45],[0.5,0.22],[0.76,0.45],[0.76,0.78]],"edges":[[0,1],[1,2],[2,3],[3,4],[4,0],[1,3]]},{"name":"Конверт","start":0,"nodes":[[0.2,0.75],[0.2,0.38],[0.5,0.2],[0.8,0.38],[0.8,0.75]],"edges":[[0,1],[1,2],[2,3],[3,4],[4,0],[1,4]]},{"name":"Песочные часы","start":0,"nodes":[[0.25,0.22],[0.75,0.22],[0.5,0.5],[0.25,0.78],[0.75,0.78]],"edges":[[0,1],[1,2],[2,0],[2,3],[3,4],[4,2]]},{"name":"Стрела","start":0,"nodes":[[0.18,0.5],[0.55,0.5],[0.55,0.28],[0.84,0.5],[0.55,0.72]],"edges":[[0,1],[1,2],[2,3],[3,4],[4,1]]},{"name":"Флажок","start":0,"nodes":[[0.25,0.82],[0.25,0.2],[0.78,0.32],[0.25,0.52]],"edges":[[0,1],[1,2],[2,3],[3,0]]},{"name":"Молния","start":0,"nodes":[[0.56,0.18],[0.3,0.5],[0.5,0.5],[0.42,0.82],[0.7,0.48],[0.5,0.48]],"edges":[[0,1],[1,2],[2,3],[4,5],[5,0],[2,4]]},{"name":"Ромб","start":0,"nodes":[[0.5,0.18],[0.8,0.5],[0.5,0.82],[0.2,0.5],[0.5,0.5]],"edges":[[0,1],[1,2],[2,3],[3,0],[0,4],[2,4]]},{"name":"Лодочка","start":0,"nodes":[[0.18,0.65],[0.3,0.8],[0.7,0.8],[0.82,0.65],[0.5,0.65],[0.5,0.22]],"edges":[[0,1],[1,2],[2,3],[3,0],[0,4],[4,3],[4,5],[1,5],[2,5]]},{"name":"Корона","start":0,"nodes":[[0.2,0.72],[0.18,0.36],[0.36,0.5],[0.5,0.26],[0.64,0.5],[0.82,0.36],[0.8,0.72]],"edges":[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,0],[2,6]]}];
 let levelIndex=1,LEVELS=[];
 function seededRandom(seed){let s=(seed>>>0)||0x9E3779B9;return ()=>{s+=0x6D2B79F5;let t=s;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return ((t^(t>>>14))>>>0)/4294967296;};}
 function eulerRoute(points,links,start=0){
@@ -52,12 +30,9 @@ function validateGenerated(points,links){
  if(seen.size!==n)return false;const route=eulerRoute(points,links);return route.length===links.length&&new Set(route.map(x=>x.id)).size===links.length;
 }
 function generateLevel(levelNumber){
- const number=Math.max(1,Math.min(20,Math.floor(Number(levelNumber)||1)));
- const tpl=TEMPLATES[number-1],points=tpl.p.map(([x,y])=>[x,y]),n=points.length;
- const links=points.map((_,i)=>[i,(i+1)%n]);
- if(n>=5){const loop=[[0,2],[2,4],[4,0]],keys=new Set(links.map(([a,b])=>a<b?a+':'+b:b+':'+a));if(loop.every(([a,b])=>!keys.has(a<b?a+':'+b:b+':'+a)))links.push(...loop);}
- if(!validateGenerated(points,links))throw new Error('Уровень '+number+' не прошёл проверку графа');
- return {name:tpl.name,title:tpl.name,points,links,start:0,solution:eulerRoute(points,links).length,levelNumber:number};
+ const number=Math.max(1,Math.min(10,Math.floor(Number(levelNumber)||1)));
+ const level=LEVEL_DATA[number-1];
+ return {name:level.name.toUpperCase(),title:level.name,points:level.nodes.map(p=>[...p]),links:level.edges.map(e=>[...e]),start:level.start,levelNumber:number};
 }
 let rabbitPoints=[],rabbitLinks=[];
 let boardSize=0,boardLeft=0,boardTop=0;
@@ -86,14 +61,9 @@ function makeGraph(){
   const a=nodes[ai],b=nodes[bi],e={id,a,b,used:false,phase:id*.63};
   a.neighbors.push({node:b,edge:e});b.neighbors.push({node:a,edge:e});return e;
  });
- const odd=nodes.filter(n=>n.neighbors.length%2===1).map(n=>n.id);
- if(odd.length!==0&&odd.length!==2)throw new Error('Уровень не имеет эйлерова маршрута.');
  const startId=level.start;
  const tour=makeEulerTour(startId);
- if(tour.length!==edges.length)throw new Error('Граф уровня не связен или не имеет эйлерова маршрута.');
- const endId=tour.length?tour[tour.length-1].to:startId;
- if(odd.length===2&&!odd.includes(startId))throw new Error('Неверная стартовая точка эйлерова маршрута.');
- if(odd.length===0&&endId!==startId)throw new Error('Некорректный эйлеров цикл.');
+ if(tour.length!==edges.length)throw new Error('Граф уровня не связен.');
  // Randomize every peg's initial arrow independently on each level start/restart.
  // The player must inspect the graph and rotate arrows to construct a valid one-pass route.
  for(const n of nodes){
@@ -135,7 +105,7 @@ canvas.addEventListener('pointerdown',e=>{
 },{passive:false});
 levelSelectButton.addEventListener('click',showLevelPicker);
 function loadLevel(index){
- if(!Number.isFinite(index)||index<1||index>20)return;
+ if(!Number.isFinite(index)||index<1||index>10)return;
  levelIndex=Math.floor(index);LEVELS=[generateLevel(levelIndex)];state=STATE.PLAYING;loseTimer=0;winTimer=0;particles=[];
  screen.style.display='none';screen.className='';
  levelLabel.textContent='УРОВЕНЬ '+levelIndex+' · '+LEVELS[0].name;
@@ -143,13 +113,13 @@ function loadLevel(index){
 }
 function restart(){loadLevel(levelIndex);}
 function nextLevel(){
- if(levelIndex<20)loadLevel(levelIndex+1);
+ if(levelIndex<10)loadLevel(levelIndex+1);
 }
 function showLevelPicker(){
  if(state===STATE.MOVING)return;
  screen.className='modal';screen.style.display='flex';
- screen.innerHTML='<div class="card level-picker"><div class="eyebrow">SILK &amp; SHAPE</div><h1>Выбор уровня</h1><p class="subtitle">В игре 20 уровней для постепенного освоения.</p><label class="level-entry">НОМЕР УРОВНЯ<input id="levelNumberInput" type="number" min="1" max="20" step="1" value="'+levelIndex+'"></label><button type="button" class="primary" id="goLevel">ОТКРЫТЬ УРОВЕНЬ</button><button type="button" class="picker-cancel" id="closeLevelPicker">НАЗАД</button></div>';
- document.getElementById('goLevel').addEventListener('click',()=>{const value=Number(document.getElementById('levelNumberInput').value);if(Number.isInteger(value)&&value>=1&&value<=20)loadLevel(value);});
+ screen.innerHTML='<div class="card level-picker"><div class="eyebrow">SILK &amp; SHAPE</div><h1>Выбор уровня</h1><p class="subtitle">В игре 10 уровней для постепенного освоения.</p><label class="level-entry">НОМЕР УРОВНЯ<input id="levelNumberInput" type="number" min="1" max="10" step="1" value="'+levelIndex+'"></label><button type="button" class="primary" id="goLevel">ОТКРЫТЬ УРОВЕНЬ</button><button type="button" class="picker-cancel" id="closeLevelPicker">НАЗАД</button></div>';
+ document.getElementById('goLevel').addEventListener('click',()=>{const value=Number(document.getElementById('levelNumberInput').value);if(Number.isInteger(value)&&value>=1&&value<=10)loadLevel(value);});
  document.getElementById('closeLevelPicker').addEventListener('click',()=>{screen.style.display='none';screen.className='';if(state===STATE.WIN)showEnd(true);else if(state===STATE.LOSE)showEnd(false);});
 }
 function lose(){
@@ -188,10 +158,10 @@ function update(dt){
  particles=particles.filter(p=>p.life>0);
 }
 function showEnd(won){
- const level=LEVELS[0],hasNext=levelIndex<20;
+ const level=LEVELS[0],hasNext=levelIndex<10;
  screen.className='modal';screen.style.display='flex';
  const title=won?(level.title+' сплетён!'):'Засада! Нить уже пройдена';
- const subtitle=won?(hasNext?'Все линии пройдены ровно по одному разу. Отличная работа!':'Ты прошёл все 20 уровней! Отличная работа!'):'Жучок повторно прошёл по уже использованной нити и запутался.';
+ const subtitle=won?(hasNext?'Все линии пройдены ровно по одному разу. Отличная работа!':'Ты прошёл все 10 уровней! Отличная работа!'):'Жучок повторно прошёл по уже использованной нити и запутался.';
  screen.innerHTML='<div class="card"><div class="eyebrow">SILK &amp; SHAPE · УРОВЕНЬ '+levelIndex+'</div><h1>'+title+'</h1><p class="subtitle">'+subtitle+'</p>'+(won&&hasNext?'<button class="primary" id="nextLevel">СЛЕДУЮЩИЙ УРОВЕНЬ</button>':'')+'<button class="primary" id="again">ЗАНОВО</button></div>';
  const next=document.getElementById('nextLevel');if(next)next.addEventListener('click',nextLevel);
  document.getElementById('again').addEventListener('click',restart);
